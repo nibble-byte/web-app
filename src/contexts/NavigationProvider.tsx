@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode, useState } from 'react';
+import { createContext, ReactNode, useState, useContext } from 'react';
 import { PageEnum } from '../constants/mapped-enums';
 
 interface NavigationContextType {

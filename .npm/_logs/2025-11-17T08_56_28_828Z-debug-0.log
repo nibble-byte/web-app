@@ -1,0 +1,56 @@
+0 verbose cli /usr/local/Cellar/node/24.9.0_1/bin/node /usr/local/bin/npm
+1 info using npm@11.6.0
+2 info using node@v24.9.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/clarence/Projects/typescript/web-app/.npmrc
+5 silly config load:file:/usr/local/etc/npmrc
+6 verbose title npm install
+7 verbose argv "install" "--loglevel" "verbose"
+8 verbose logfile logs-max:10 dir:/Users/clarence/Projects/typescript/web-app/.npm/_logs/2025-11-17T08_56_28_828Z-
+9 verbose logfile /Users/clarence/Projects/typescript/web-app/.npm/_logs/2025-11-17T08_56_28_828Z-debug-0.log
+10 silly logfile done cleaning log files
+11 verbose stack Error: EPERM: operation not permitted, open '/usr/local/lib/node_modules/npm/node_modules/@sigstore/verify/dist/key/index.js'
+11 verbose stack     at Object.readFileSync (node:fs:440:20)
+11 verbose stack     at defaultLoadImpl (node:internal/modules/cjs/loader:1138:17)
+11 verbose stack     at loadSource (node:internal/modules/cjs/loader:1787:20)
+11 verbose stack     at Object..js (node:internal/modules/cjs/loader:1886:44)
+11 verbose stack     at Module.load (node:internal/modules/cjs/loader:1480:32)
+11 verbose stack     at Module._load (node:internal/modules/cjs/loader:1299:12)
+11 verbose stack     at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+11 verbose stack     at wrapModuleLoad (node:internal/modules/cjs/loader:244:24)
+11 verbose stack     at Module.require (node:internal/modules/cjs/loader:1503:12)
+11 verbose stack     at require (node:internal/modules/helpers:152:16)
+12 error code EPERM
+13 error syscall open
+14 error path /usr/local/lib/node_modules/npm/node_modules/@sigstore/verify/dist/key/index.js
+15 error errno -1
+16 error Error: EPERM: operation not permitted, open '/usr/local/lib/node_modules/npm/node_modules/@sigstore/verify/dist/key/index.js'
+16 error     at Object.readFileSync (node:fs:440:20)
+16 error     at defaultLoadImpl (node:internal/modules/cjs/loader:1138:17)
+16 error     at loadSource (node:internal/modules/cjs/loader:1787:20)
+16 error     at Object..js (node:internal/modules/cjs/loader:1886:44)
+16 error     at Module.load (node:internal/modules/cjs/loader:1480:32)
+16 error     at Module._load (node:internal/modules/cjs/loader:1299:12)
+16 error     at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+16 error     at wrapModuleLoad (node:internal/modules/cjs/loader:244:24)
+16 error     at Module.require (node:internal/modules/cjs/loader:1503:12)
+16 error     at require (node:internal/modules/helpers:152:16) {
+16 error   errno: -1,
+16 error   code: 'EPERM',
+16 error   syscall: 'open',
+16 error   path: '/usr/local/lib/node_modules/npm/node_modules/@sigstore/verify/dist/key/index.js'
+16 error }
+17 error
+17 error The operation was rejected by your operating system.
+17 error It is likely you do not have the permissions to access this file as the current user
+17 error
+17 error If you believe this might be a permissions issue, please double-check the
+17 error permissions of the file and its containing directories, or try running
+17 error the command again as root/Administrator.
+18 verbose cwd /Users/clarence/Projects/typescript/web-app
+19 verbose os Darwin 25.1.0
+20 verbose node v24.9.0
+21 verbose npm  v11.6.0
+22 verbose exit -1
+23 verbose code -1
+24 error A complete log of this run can be found in: /Users/clarence/Projects/typescript/web-app/.npm/_logs/2025-11-17T08_56_28_828Z-debug-0.log
