@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { memo, useMemo, useState } from 'react'
 import {
   Box,
   FormControl,
@@ -39,7 +39,7 @@ interface FractalNodeProps {
   shape: FractalShape
 }
 
-const FractalNode = ({ x, y, size, depth, vertices, shape }: FractalNodeProps) => {
+const FractalNode = memo(function FractalNode({ x, y, size, depth, vertices, shape }: FractalNodeProps) {
   if (depth <= 0) return null
 
   const half = size / 2
@@ -118,7 +118,7 @@ const FractalNode = ({ x, y, size, depth, vertices, shape }: FractalNodeProps) =
       {shapeEl}
     </>
   )
-}
+})
 
 const Fractal = () => {
   const [vertices, setVertices] = useState(6)
@@ -126,6 +126,20 @@ const Fractal = () => {
   const [shape, setShape] = useState<FractalShape>('square')
 
   const center = useMemo(() => ({ x: STAGE_WIDTH / 2, y: STAGE_HEIGHT / 2 }), [])
+
+  const fractalTree = useMemo(
+    () => (
+      <FractalNode
+        x={center.x}
+        y={center.y}
+        size={BASE_SIZE}
+        depth={depth}
+        vertices={vertices}
+        shape={shape}
+      />
+    ),
+    [center.x, center.y, depth, vertices, shape]
+  )
 
   const handleShapeChange = (e: SelectChangeEvent<FractalShape>) => {
     setShape(e.target.value as FractalShape)
@@ -194,16 +208,7 @@ const Fractal = () => {
       >
         <Stage width={STAGE_WIDTH} height={STAGE_HEIGHT}>
           <Layer>
-            <Group>
-              <FractalNode
-                x={center.x}
-                y={center.y}
-                size={BASE_SIZE}
-                depth={depth}
-                vertices={vertices}
-                shape={shape}
-              />
-            </Group>
+            <Group>{fractalTree}</Group>
           </Layer>
         </Stage>
       </Box>
