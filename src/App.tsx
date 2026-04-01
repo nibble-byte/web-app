@@ -3,6 +3,7 @@ import styles from './App.module.css'
 import { Box, CssBaseline, ThemeProvider } from '@mui/material'
 import Weather from './pages/weather/weather'
 import Othello from './pages/othello/othello'
+import Fractal from './pages/fractal/fractal'
 
 import NavigationPanel from './navigationPanel/navigationPanel'
 import { darkTheme } from './themes/darkTheme'
@@ -21,6 +22,9 @@ const AppContent = () => {
     switch (currentPage) {
       case PageEnum.Othello: {
         return <Othello />
+      }
+      case PageEnum.Fractal: {
+        return <Fractal />
       }
       default: {
         return <Weather />
