@@ -34,13 +34,14 @@
   },
   "scripts": {
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d build -r git@github.com:ClarenceLuk/clarenceluk.github.io.git",
+    "deploy": "npm run build && wrangler deploy",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "jest",
     "eject": "react-scripts eject",
     "lint": "pretty-quick",
-    "prepare": "husky install .husky"
+    "prepare": "husky install .husky",
+    "preview": "npm run build && wrangler dev"
   },
   "eslintConfig": {
     "extends": [
@@ -80,6 +81,7 @@
     "prettier": "^3.3.0",
     "pretty-quick": "^4.0.0",
     "recharts": "^2.15.2",
-    "style-loader": "^4.0.0"
+    "style-loader": "^4.0.0",
+    "wrangler": "^4.80.0"
   }
 }
