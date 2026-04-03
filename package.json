@@ -22,7 +22,7 @@
     "express": "^5.1.0",
     "flagsmith": "^9.3.2",
     "fontawesome-free": "^1.0.4",
-    "konva": "^10.2.3",
+    "konva": "^9.0.0",
     "moment": "^2.30.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
