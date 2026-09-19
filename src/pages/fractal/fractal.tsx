@@ -161,7 +161,7 @@ const Fractal = () => {
               setVertices(Array.isArray(v) ? v[0] : v)
             }
             min={3}
-            max={12}
+            max={6}
             step={1}
             marks
             valueLabelDisplay="auto"
