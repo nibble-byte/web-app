@@ -1,71 +1,93 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import React from 'react'
 import Cell from './cell'
 import styles from './othello.module.css'
-import {
-  handleFlip,
-  handleChipCount,
-  handlePossibleMoves,
-  handleValidMoves,
-  handlePlayerTurn,
-  handleWinningCondition,
-} from './gamelogic'
+import { applyMove, getBestMove } from './gamelogic'
 
-import { DEFAULTGAMESTATE, PLAYER } from './constants'
-import { OthelloState, Player } from './types'
+import { DEFAULTGAMESTATE } from './constants'
+import { Difficulty, OthelloState, Player } from './types'
 import { cloneDeep } from 'lodash'
 import { Box } from '@mui/material'
 import GameModal from './gameModal'
 import GameStats from './gameStats'
+import AISettingsModal from './aiSettingsModal'
 
 const Othello = () => {
   const [gameState, setGameState] = useState<OthelloState>(
     cloneDeep(DEFAULTGAMESTATE)
   )
+  const [settingsOpen, setSettingsOpen] = useState(true)
+  const [history, setHistory] = useState<OthelloState[]>([])
 
   const handleClick = (player: Player, row: number, col: number): void => {
     if (
       gameState.board[row][col] === '' &&
       `${row},${col}` in gameState.validMoves[player]
     ) {
-      const newBoard = handleFlip(gameState.board, player, row, col)
-
-      const newChipCount = handleChipCount(newBoard)
-
-      const newPossibleMoves = handlePossibleMoves(
-        gameState.board,
-        gameState.possibleMoves,
-        row,
-        col
-      )
-      const newValidMoves = handleValidMoves(newBoard, newPossibleMoves)
-
-      const nextPlayer = handlePlayerTurn(
-        newValidMoves,
-        player,
-        player === PLAYER.black ? PLAYER.white : PLAYER.black
-      )
-
-      const newWinningCondition = handleWinningCondition(newChipCount)
-
-      setGameState({
-        ...gameState,
-        board: newBoard,
-        player: nextPlayer,
-        chipCounts: newChipCount,
-        possibleMoves: newPossibleMoves,
-        validMoves: newValidMoves,
-        openModal: newWinningCondition,
-      })
+      setHistory([...history, gameState])
+      setGameState(applyMove(gameState, player, row, col))
     }
   }
 
   const handleReset = () => {
-    setGameState(cloneDeep(DEFAULTGAMESTATE))
+    setGameState({ ...cloneDeep(DEFAULTGAMESTATE), vsAI: gameState.vsAI, aiDifficulty: gameState.aiDifficulty })
+    setHistory([])
   }
+
+  const handleConfirmSettings = (vsAI: boolean, aiDifficulty: Difficulty) => {
+    setGameState({ ...cloneDeep(DEFAULTGAMESTATE), vsAI, aiDifficulty })
+    setHistory([])
+    setSettingsOpen(false)
+  }
+
+  const handleUndo = () => {
+    if (history.length === 0) {
+      return
+    }
+    const newHistory = [...history]
+    let previousState = newHistory.pop() as OthelloState
+    // vs a bot, one undo should return control to the human by also undoing the bot's move
+    if (gameState.vsAI && previousState.player === gameState.aiPlayer && newHistory.length > 0) {
+      previousState = newHistory.pop() as OthelloState
+    }
+    setHistory(newHistory)
+    setGameState(previousState)
+  }
+
+  useEffect(() => {
+    if (
+      !gameState.vsAI ||
+      gameState.openModal ||
+      gameState.player !== gameState.aiPlayer
+    ) {
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      const bestMove = getBestMove(
+        gameState.board,
+        gameState.aiPlayer,
+        gameState.aiDifficulty
+      )
+      if (bestMove) {
+        const [row, col] = bestMove
+        setHistory((prevHistory) => [...prevHistory, gameState])
+        setGameState(applyMove(gameState, gameState.aiPlayer, row, col))
+      }
+    }, 400)
+
+    return () => clearTimeout(timeoutId)
+  }, [gameState])
 
   return (
     <Box className={styles.board}>
+      <AISettingsModal
+        open={settingsOpen}
+        vsAI={gameState.vsAI}
+        difficulty={gameState.aiDifficulty}
+        onClose={() => setSettingsOpen(false)}
+        onConfirm={handleConfirmSettings}
+      />
       <GameModal
         handleReset={handleReset}
         setGameState={setGameState}
@@ -89,10 +111,12 @@ const Othello = () => {
         ))}
       </Box>
       {/* TODO: implement ui component for game statistics */}
-      {/* TODO: implement ui component for undo funtion */}
       <GameStats
         gameState={gameState}
         handleReset={handleReset}
+        handleOpenSettings={() => setSettingsOpen(true)}
+        handleUndo={handleUndo}
+        canUndo={history.length > 0}
       />
     </Box>
   )

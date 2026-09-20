@@ -7,24 +7,43 @@ import cellStyles from './cell.module.css'
 interface GameStatsProps {
   gameState: OthelloState
   handleReset: () => void
+  handleOpenSettings: () => void
+  handleUndo: () => void
+  canUndo: boolean
 }
 
-const GameStats = ({gameState, handleReset}: GameStatsProps) => {
+const GameStats = ({
+  gameState,
+  handleReset,
+  handleOpenSettings,
+  handleUndo,
+  canUndo,
+}: GameStatsProps) => {
   return (
   <Box className={styles.gameUI}>
-    <Button variant="outlined" onClick={handleReset}>
-      Reset
-    </Button>
-    <Box className={styles.turn}>
-      <Typography variant="subtitle2">Turn:</Typography>
-      <Box className={cellStyles[gameState.player]} />
+    <Box className={styles.controlsRow}>
+      <Button variant="outlined" onClick={handleReset}>
+        Reset
+      </Button>
+      <Button variant="outlined" onClick={handleUndo} disabled={!canUndo}>
+        Undo
+      </Button>
+      <Box className={styles.turn}>
+        <Typography variant="subtitle2">Turn:</Typography>
+        <Box className={cellStyles[gameState.player]} />
+      </Box>
+      <Typography variant="subtitle2">
+        Black: {gameState.chipCounts.black}
+      </Typography>
+      <Typography variant="subtitle2">
+        White: {gameState.chipCounts.white}
+      </Typography>
     </Box>
-    <Typography variant="subtitle2">
-      Black: {gameState.chipCounts.black}
-    </Typography>
-    <Typography variant="subtitle2">
-      White: {gameState.chipCounts.white}
-    </Typography>
+    <Box className={styles.botRow}>
+      <Button variant="outlined" onClick={handleOpenSettings}>
+        {gameState.vsAI ? `Bot: Level ${gameState.aiDifficulty}` : 'Play vs Bot'}
+      </Button>
+    </Box>
   </Box>
 )}
 

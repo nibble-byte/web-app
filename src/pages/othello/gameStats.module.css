@@ -1,8 +1,20 @@
 .gameUI {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.controlsRow {
+  display: flex;
   justify-content: space-between;
   align-items: center;
   width: 100%;
+}
+
+.botRow {
+  display: flex;
+  justify-content: center;
 }
 
 .turn {
