@@ -18,6 +18,7 @@ const Othello = () => {
   )
   const [settingsOpen, setSettingsOpen] = useState(true)
   const [history, setHistory] = useState<OthelloState[]>([])
+  const [statsLayout, setStatsLayout] = useState<'top' | 'bottom'>('bottom')
 
   const handleClick = (player: Player, row: number, col: number): void => {
     if (
@@ -80,7 +81,13 @@ const Othello = () => {
   }, [gameState])
 
   return (
-    <Box className={styles.board}>
+    <Box
+      className={
+        statsLayout === 'top'
+          ? `${styles.board} ${styles.boardWithTopBar}`
+          : styles.board
+      }
+    >
       <AISettingsModal
         open={settingsOpen}
         vsAI={gameState.vsAI}
@@ -93,7 +100,21 @@ const Othello = () => {
         setGameState={setGameState}
         gameState={gameState}
       />
-      <Box>
+      {statsLayout === 'top' && (
+        <GameStats
+          gameState={gameState}
+          handleReset={handleReset}
+          handleOpenSettings={() => setSettingsOpen(true)}
+          handleUndo={handleUndo}
+          canUndo={history.length > 0}
+          layout={statsLayout}
+          onToggleLayout={() =>
+            setStatsLayout((layout) => (layout === 'top' ? 'bottom' : 'top'))
+          }
+        />
+      )}
+      <Box className={styles.boardFrame}>
+        <Box className={styles.grid}>
         {gameState.board.map((rowArray, row: number) => (
           <Box key={row} className={styles.rowStyle}>
             {rowArray.map((value, col: number) => (
@@ -109,15 +130,21 @@ const Othello = () => {
             ))}
           </Box>
         ))}
+        </Box>
       </Box>
-      {/* TODO: implement ui component for game statistics */}
-      <GameStats
-        gameState={gameState}
-        handleReset={handleReset}
-        handleOpenSettings={() => setSettingsOpen(true)}
-        handleUndo={handleUndo}
-        canUndo={history.length > 0}
-      />
+      {statsLayout === 'bottom' && (
+        <GameStats
+          gameState={gameState}
+          handleReset={handleReset}
+          handleOpenSettings={() => setSettingsOpen(true)}
+          handleUndo={handleUndo}
+          canUndo={history.length > 0}
+          layout={statsLayout}
+          onToggleLayout={() =>
+            setStatsLayout((layout) => (layout === 'top' ? 'bottom' : 'top'))
+          }
+        />
+      )}
     </Box>
   )
 }

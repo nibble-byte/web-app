@@ -1,7 +1,9 @@
 .appWrapper {
   display: flex;
-  justify-content: center;
-  align-items: center;
+  justify-content: flex-start;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
   height: 100%;
   width: 100%;
 }
@@ -9,11 +11,16 @@
 .appBox {
   display: flex;
   height: 100%;
-  width: 800;
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
 }
 
 
 .pageBox {
   display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 100vh;
   width: 100%;
 }

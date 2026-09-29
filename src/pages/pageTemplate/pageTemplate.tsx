@@ -13,18 +13,21 @@ const PageTemplate = ({ title, children }: PageProps) => {
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh',
+        height: '100%',
       }}>
       {/* Title Area */}
       <Box
         sx={{
           padding: 2,
-          backgroundColor: 'primary.main',
-          color: 'primary.contrastText',
+          backgroundColor: 'background.paper',
+          color: 'text.primary',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          minWidth: '450px'
+          justifyContent: 'flex-start',
+          width: '100%',
+          minWidth: 0,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
         }}>
         <Typography variant="h4">{title}</Typography>
       </Box>

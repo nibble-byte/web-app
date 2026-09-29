@@ -1,8 +1,9 @@
 .gameUI {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 14px;
   width: 100%;
+  max-width: 640px;
 }
 
 .controlsRow {
@@ -10,15 +11,129 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  gap: 12px;
 }
 
-.botRow {
+.actionGroup {
   display: flex;
-  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.turn {
+.scorePanel {
   display: flex;
   align-items: center;
-  flex-direction: row;
+  justify-content: space-between;
+  min-height: 86px;
+  padding: 12px 18px;
+  border: 1px solid rgba(53, 76, 64, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 5px 18px rgba(41, 50, 42, 0.07);
+}
+
+.playerScore {
+  display: grid;
+  grid-template-columns: 30px auto;
+  align-items: center;
+  column-gap: 9px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: #69736c;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.scorePanel .playerScore :global(.MuiTypography-root) {
+  color: #657269;
+}
+
+.activePlayer {
+  background: #e7f0e8;
+  color: #214c37;
+}
+
+.scorePanel .activePlayer :global(.MuiTypography-root) {
+  color: #214c37;
+}
+
+.scoreDisc {
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  grid-row: span 2;
+}
+
+.scoreValue {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #24382d;
+}
+
+.scorePanel .scoreValue {
+  color: #24382d;
+}
+
+.turnStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #7c877e;
+}
+
+.turnStatus :global(.MuiTypography-root) {
+  color: #68766c;
+}
+
+.turnDisc {
+  width: 21px;
+  height: 21px;
+  margin: 0;
+}
+
+.topBar {
+  background-color: #174f40 !important;
+  box-shadow: 0 5px 20px rgba(14, 38, 29, 0.2) !important;
+}
+
+.topBarToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+  .scorePanel {
+    min-height: 74px;
+    padding: 8px 4px;
+  }
+
+  .playerScore {
+    grid-template-columns: 24px auto;
+    column-gap: 6px;
+    padding: 5px;
+  }
+
+  .scoreDisc {
+    width: 20px;
+    height: 20px;
+  }
+
+  .scoreValue {
+    font-size: 1.1rem;
+  }
+
+  .turnStatus {
+    gap: 5px;
+  }
+
+  .controlsRow {
+    align-items: flex-start;
+  }
+
+  .actionGroup {
+    gap: 6px;
+  }
 }

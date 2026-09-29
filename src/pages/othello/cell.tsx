@@ -21,21 +21,23 @@ const Cell: React.FC<CellProps> = ({
 }) => {
   if (`${row},${col}` in validMoves[player]) {
     return (
-      <div
+      <button
+        type="button"
+        aria-label={`Place ${player === 'black' ? 'black' : 'white'} disc at row ${row + 1}, column ${col + 1}`}
         className={styles.cell}
-        key={`${player}-${row}-${col}`}
         onClick={() => handleFlip(player, row, col)}>
         <div className={styles.valid} />
-      </div>
+      </button>
     )
   }
   return (
-    <div
+    <button
+      type="button"
+      aria-label={`${value === '' ? 'Empty' : value === 'B' ? 'Black' : 'White'} square at row ${row + 1}, column ${col + 1}`}
       className={styles.cell}
-      key={`${player}-${row}-${col}`}
       onClick={() => handleFlip(player, row, col)}>
       <div className={styles[value]} />
-    </div>
+    </button>
   )
 }
 

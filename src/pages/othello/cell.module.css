@@ -1,41 +1,56 @@
 .cell {
-  height: 50px;
-  width: 50px;
-  background-color: green;
-  margin: 1px;
+  display: grid;
+  place-items: center;
+  width: clamp(32px, 9vw, 72px);
+  aspect-ratio: 1;
+  flex: 1 1 0;
+  padding: 0;
+  border: 1px solid rgba(10, 44, 35, 0.22);
+  background: #438b69;
+  cursor: pointer;
+  transition: background-color 120ms ease;
 }
 
-.possibleCell {
-  height: 50px;
-  width: 50px;
-  background-color: green;
-  margin: 1px;
-  border: 2px solid white;
+.cell:nth-child(even) {
+  background: #3d825f;
+}
+
+.cell:hover {
+  background: #579b77;
+}
+
+.cell:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid #f2cb74;
+  outline-offset: -4px;
 }
 
 .black {
-  height: 46px;
-  width: 46px;
-  background-color: black;
+  width: 74%;
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 34% 28%, #505b55, #101714 68%);
   border-radius: 50%;
-  margin: 2px;
-  border: 1px solid gray;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 3px 5px rgba(9, 23, 17, 0.45),
+    inset 0 1px 1px rgba(255, 255, 255, 0.12);
 }
 
 .white {
-  height: 46px;
-  width: 46px;
-  background-color: white;
+  width: 74%;
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 34% 28%, #ffffff, #d6ded8 75%);
   border-radius: 50%;
-  margin: 2px;
-  border: 1px solid gray;
+  border: 1px solid rgba(22, 46, 35, 0.24);
+  box-shadow: 0 3px 5px rgba(9, 23, 17, 0.32),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
 }
 
 .valid {
-  height: 10px;
-  width: 10px;
-  background-color: darkslategray;
+  width: 19%;
+  aspect-ratio: 1;
+  background: #f2cb74;
   border-radius: 50%;
-  margin: 20px;
+  box-shadow: 0 0 0 4px rgba(242, 203, 116, 0.2);
 }
 
