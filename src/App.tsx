@@ -13,10 +13,14 @@ import PageTemplate from './pages/pageTemplate/pageTemplate'
 import { AppProviders } from './contexts/AppProviders'
 import { useTheme } from './contexts/ThemeProvider'
 import { useNavigation } from './contexts/NavigationProvider'
+import { useState } from 'react'
+
+type NavigationLayout = 'top' | 'sidebar'
 
 const AppContent = () => {
   const { isDarkMode } = useTheme();
   const { currentPage } = useNavigation();
+  const [navigationLayout, setNavigationLayout] = useState<NavigationLayout>('top')
 
   const handlePageLoad = (currentPage: string) => {
     switch (currentPage) {
@@ -36,9 +40,9 @@ const AppContent = () => {
     <ThemeProvider theme={isDarkMode ? darkTheme : lightTheme}>
       <CssBaseline />
       <Box
-        className={styles.pageBox}
+        className={`${styles.pageBox} ${navigationLayout === 'sidebar' ? styles.withSidebar : ''}`}
       >
-        <NavigationPanel />
+        <NavigationPanel layout={navigationLayout} onLayoutChange={setNavigationLayout} />
         <Box className={styles.appWrapper}>
           <Box className={styles.appBox}>
             {

@@ -14,6 +14,8 @@ const PageTemplate = ({ title, children }: PageProps) => {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        width: '100%',
+        minWidth: 0,
       }}>
       {/* Title Area */}
       <Box
@@ -37,7 +39,9 @@ const PageTemplate = ({ title, children }: PageProps) => {
         sx={{
           flexGrow: 1,
           padding: 2,
+          minWidth: 0,
           overflowY: 'auto', // Allows scrolling if content overflows
+          overflowX: 'auto',
         }}>
         {children}
       </Box>
