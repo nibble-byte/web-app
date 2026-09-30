@@ -98,35 +98,52 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const currentTemperature = currentData ? currentData.temperature : temperature_2m_max;
 
     return (
-        <Box className={styles.weatherCard}>
-            {/* Use an <i> element with Weather Icons classes */}
-            <i className={`wi ${iconClass}`} style={{ fontSize: '64px', marginBottom: '10px' }}></i>
-            <Typography variant="h6">{dayName} — {fullDate}</Typography>
-            {isTodaySelected && (
-                <Typography variant="body1">
-                    Current Temperature: {currentTemperature}°F
-                </Typography>
-            )}
-            <Typography variant="body1">Wind: {windspeed_10m_max} km/h</Typography>
-            <Typography variant="body1">Chance to rain: {precipitation_probability_max || 0}%</Typography>
-            <Typography variant="body1" sx={{ marginTop: 1, whiteSpace: 'pre-line' }}>
-                {
-                  `Max: ${temperature_2m_max}°F
-                  Min: ${temperature_2m_min}°F
-                  Sunrise: ${moment(sunrise).format('h:mm A')}
-                  Sunset: ${moment(sunset).format('h:mm A')}`
-                }
-            </Typography>
+        <Box className={`${styles.weatherCard} ${theme.palette.mode === 'dark' ? styles.dark : ''}`}>
+            <Box className={styles.summary}>
+                <Box className={styles.conditions}>
+                    <i className={`wi ${iconClass}`} aria-hidden="true"></i>
+                    <Box>
+                        <Typography className={styles.date}>{dayName}, {fullDate}</Typography>
+                        <Typography className={styles.summaryLabel}>{isTodaySelected ? 'TODAY’S CONDITIONS' : 'DAILY CONDITIONS'}</Typography>
+                    </Box>
+                </Box>
+                <Box className={styles.temperature}>
+                    <Typography className={styles.temperatureValue}>
+                        {isTodaySelected ? Math.round(currentTemperature) : Math.round(temperature_2m_max)}°
+                    </Typography>
+                    <Typography className={styles.temperatureRange}>
+                        H {Math.round(temperature_2m_max)}° <span>/</span> L {Math.round(temperature_2m_min)}°
+                    </Typography>
+                </Box>
+            </Box>
+            <Box className={styles.metrics}>
+                <Box className={styles.metric}>
+                    <Typography className={styles.metricLabel}>WIND</Typography>
+                    <Typography className={styles.metricValue}>{Math.round(windspeed_10m_max)} <small>km/h</small></Typography>
+                </Box>
+                <Box className={styles.metric}>
+                    <Typography className={styles.metricLabel}>RAIN CHANCE</Typography>
+                    <Typography className={styles.metricValue}>{precipitation_probability_max || 0}<small>%</small></Typography>
+                </Box>
+                <Box className={styles.metric}>
+                    <Typography className={styles.metricLabel}>SUNRISE</Typography>
+                    <Typography className={styles.metricValue}>{moment(sunrise).format('h:mm')} <small>{moment(sunrise).format('A')}</small></Typography>
+                </Box>
+                <Box className={styles.metric}>
+                    <Typography className={styles.metricLabel}>SUNSET</Typography>
+                    <Typography className={styles.metricValue}>{moment(sunset).format('h:mm')} <small>{moment(sunset).format('A')}</small></Typography>
+                </Box>
+            </Box>
             {hourlyForSelected.length > 0 && (
-                <Box sx={{ marginTop: 2 }}>
-                    <Typography variant="h6" sx={{ marginBottom: 1 }}>Hourly Temperature</Typography>
-                    <ResponsiveContainer width="100%" height={300}>
+                <Box className={styles.hourlySection}>
+                    <Typography className={styles.chartTitle}>Hourly temperature</Typography>
+                    <ResponsiveContainer width="100%" height={260}>
                         <LineChart data={hourlyForSelected}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="time" />
-                            <YAxis domain={[0, 120]} />
+                            <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+                            <XAxis dataKey="time" tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
+                            <YAxis domain={[0, 120]} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
                             <Tooltip content={<CustomTooltip />} />
-                            <Line type="monotone" dataKey="temperature" stroke={theme.palette.primary.main} />
+                            <Line type="monotone" dataKey="temperature" stroke="#187a72" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
                             <Brush 
                                 dataKey="time" 
                                 height={30} 

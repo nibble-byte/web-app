@@ -1,24 +1,156 @@
 .weatherCard {
-  border: 2px solid white;
-}
-
-.weatherCard i {
-  max-width: 100%;
-  display: block;
+  --card-ink: #1b3538;
+  --card-muted: #617577;
+  --card-line: rgba(37, 75, 76, 0.15);
+  --card-surface: rgba(255, 255, 255, 0.82);
   overflow: hidden;
-  text-align: center; /* optional */
-  margin-top: 20px;
+  padding: clamp(18px, 3vw, 32px);
+  border: 1px solid var(--card-line);
+  border-radius: 10px;
+  background: var(--card-surface);
+  color: var(--card-ink);
+  box-shadow: 0 18px 45px rgba(31, 66, 58, 0.09);
 }
 
-.detailedForecastButton {
-  width: auto;
+.dark {
+  --card-ink: #e7efeb;
+  --card-muted: #a3b7b0;
+  --card-line: rgba(223, 238, 232, 0.14);
+  --card-surface: rgba(28, 48, 46, 0.92);
 }
 
-.detailedForecast {
-  width: 300px;
+.weatherCard :global(.MuiTypography-root) {
+  color: inherit;
 }
 
-.detailedForecastBox {
+.summary {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--card-line);
+}
+
+.conditions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.conditions i {
+  display: grid;
+  place-items: center;
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background: rgba(24, 122, 114, 0.12);
+  color: #c28a27;
+  font-size: 3.2rem;
+}
+
+.date {
+  font-size: 1.25rem !important;
+  font-weight: 600 !important;
+}
+
+.summaryLabel,
+.metricLabel {
+  color: var(--card-muted) !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+}
+
+.temperature {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.temperatureValue {
+  font-size: 4rem !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+}
+
+.temperatureRange {
+  color: var(--card-muted) !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+}
+
+.temperatureRange span {
+  padding: 0 4px;
+  color: #96a7a1;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 20px 0 8px;
+}
+
+.metric {
+  min-width: 0;
+  padding: 0 18px;
+  border-right: 1px solid var(--card-line);
+}
+
+.metric:first-child {
+  padding-left: 0;
+}
+
+.metric:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.metricValue {
+  margin-top: 4px !important;
+  font-size: 1.15rem !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+}
+
+.metricValue small {
+  color: var(--card-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.hourlySection {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--card-line);
+}
+
+.chartTitle {
+  margin-bottom: 10px !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+}
+
+@media (max-width: 680px) {
+  .summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .temperatureValue {
+    font-size: 3.2rem !important;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 18px;
+  }
+
+  .metric:nth-child(2) {
+    border-right: 0;
+  }
+
+  .metric:nth-child(3) {
+    padding-left: 0;
+  }
 }

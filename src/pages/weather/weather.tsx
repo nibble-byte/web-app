@@ -4,6 +4,7 @@ import { Box, Typography, Button, useTheme, TextField } from '@mui/material';
 import WeatherCard from './weatherCard';
 import getOpenMeteoWeather from './getOpenMeteoWeather';
 import Calendar from './calendar';
+import styles from './weather.module.css';
 
 interface Coordinates {
   latitude: number;
@@ -127,51 +128,61 @@ const Weather: React.FC = () => {
       : [];
 
   return (
-    <Box sx={{ padding: 2 }}>
-      <form onSubmit={handleZipSubmit} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+    <Box className={`${styles.weatherPage} ${theme.palette.mode === 'dark' ? styles.dark : ''}`}>
+      <Box className={styles.weatherHeading}>
+        <Box>
+          <Typography className={styles.eyebrow}>LOCAL CONDITIONS</Typography>
+          <Typography component="h2" className={styles.heading}>Weather, in focus.</Typography>
+          <Typography className={styles.subheading}>A clear look at the days ahead.</Typography>
+        </Box>
+        <Box className={styles.locationFormWrap}>
+          <form onSubmit={handleZipSubmit} className={styles.locationForm}>
         <TextField
           label="Zip Code"
           variant="outlined"
           size="small"
           value={zipCode}
           onChange={(e) => setZipCode(e.target.value)}
-          sx={{ width: 120 }}
+          className={styles.zipField}
+          inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 5 }}
         />
         <Button
           type="submit"
           variant="contained"
-          sx={{
-            backgroundColor: theme.palette.primary.main,
-            color: theme.palette.primary.contrastText,
-            '&:hover': {
-              backgroundColor: theme.palette.primary.dark,
-            },
-          }}
+          className={styles.searchButton}
+          disabled={loading || zipCode.length === 0}
         >
-          Use Zip
+          Search
         </Button>
         <Button
           variant="contained"
           onClick={() => fetchWeatherData()}
-          sx={{
-            backgroundColor: theme.palette.primary.main,
-            color: theme.palette.primary.contrastText,
-            '&:hover': {
-              backgroundColor: theme.palette.primary.dark,
-            },
-          }}
+          className={styles.locationButton}
+          disabled={loading}
         >
-          Use My Location
+          Use my location
         </Button>
-      </form>
-      {loading && <Typography variant="h6">Loading weather data...</Typography>}
-      {error && <Typography variant="h6" color="error">{error}</Typography>}
+          </form>
+        </Box>
+      </Box>
+      {loading && <Typography className={styles.status} aria-live="polite">Finding your forecast...</Typography>}
+      {error && <Typography className={`${styles.status} ${styles.error}`} role="alert">{error}</Typography>}
+
+      {dailyForecasts.length === 0 && !loading && !error && (
+        <Box className={styles.emptyState}>
+          <Box className={styles.weatherMark} aria-hidden="true" />
+          <Typography className={styles.emptyTitle}>Your forecast is waiting.</Typography>
+          <Typography className={styles.emptyCopy}>
+            Search by ZIP code or use your current location to see the week ahead.
+          </Typography>
+        </Box>
+      )}
 
       {dailyForecasts.length > 0 && (
-        <Box>
+        <Box className={styles.forecastContent}>
           {/* Display detailed forecast for the selected date (with hourly graph) */}
           {selectedForecastIndex !== null && (
-            <Box sx={{ marginTop: 4 }}>
+            <Box className={styles.detailSection}>
               <WeatherCard 
                 forecastData={dailyForecasts[selectedForecastIndex]} 
                 hourlyData={weatherData.hourly} 
@@ -180,10 +191,14 @@ const Weather: React.FC = () => {
           )}
 
           {/* Date selector header and calendar */}
-          <Box sx={{ marginTop: 2 }}>
-            <Typography variant="h6" sx={{ marginBottom: 1 }}>
-              Select a Date
-            </Typography>
+          <Box className={styles.calendarSection}>
+            <Box className={styles.sectionHeading}>
+              <Box>
+                <Typography className={styles.eyebrow}>THE WEEK AHEAD</Typography>
+                <Typography component="h3" className={styles.sectionTitle}>Daily forecast</Typography>
+              </Box>
+              <Typography className={styles.sectionHint}>Select a day for the hourly outlook</Typography>
+            </Box>
             <Calendar
               dailyForecasts={dailyForecasts}
               selectedForecastIndex={selectedForecastIndex}

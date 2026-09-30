@@ -1,9 +1,77 @@
+.calendar {
+  min-width: 0;
+}
+
+.monthHeading {
+  margin-bottom: 14px;
+  color: var(--weather-ink, #1b3538);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.weekdays,
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.weekdays {
+  margin-bottom: 8px;
+  color: var(--weather-muted, #617577);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.week {
+  margin-bottom: 8px;
+}
+
+.dayButton {
+  position: relative !important;
+  display: block !important;
+  width: 100%;
+  min-width: 0 !important;
+  height: 84px;
+  padding: 0 !important;
+  border: 1px solid var(--weather-line, rgba(37, 75, 76, 0.15)) !important;
+  border-radius: 6px !important;
+  color: var(--weather-ink, #1b3538) !important;
+  background: transparent !important;
+  text-transform: none !important;
+  transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease !important;
+}
+
+.dayButton:not(:global(.Mui-disabled)):hover {
+  transform: translateY(-2px);
+  border-color: #187a72 !important;
+  background: rgba(24, 122, 114, 0.08) !important;
+}
+
+.dayButton:global(.Mui-disabled) {
+  border-style: dashed !important;
+  color: var(--weather-muted, #617577) !important;
+  opacity: 0.42;
+}
+
+.dayButton.selectedDay {
+  border-color: #187a72 !important;
+  background: #187a72 !important;
+  color: #fff !important;
+}
+
+.dayButton.today:not(.selectedDay) {
+  border-color: #d2a643 !important;
+}
+
 .dateBox {
   position: absolute;
   top: 6px;
   left: 0;
   width: 100%;
-  height: 48px;
+  height: 40px;
   text-align: center;
   z-index: 1;
   pointer-events: none;
@@ -11,30 +79,76 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
+  color: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .tempBox {
   position: absolute;
   bottom: 21px;
   right: 6px;
-  font-size: 8px;
+  font-size: 0.68rem;
   display: flex;
   align-items: center;
   gap: 0.5em;
   border-radius: 4px;
-  padding: 0 4px;
-  /* background: none; <-- not needed */
+  padding: 1px 4px;
+  color: inherit;
 }
 
 .rainBox {
   position: absolute;
   bottom: 3px;
   right: 6px;
-  font-size: 8px;
+  font-size: 0.66rem;
   display: flex;
   align-items: center;
   gap: 0.5em;
   border-radius: 4px;
-  padding: 0 4px;
-  /* background: none; <-- not needed */
+  padding: 1px 4px;
+  color: inherit;
+}
+
+.selectedDay .tempBox,
+.selectedDay .rainBox {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+@media (max-width: 560px) {
+  .weekdays,
+  .week {
+    gap: 4px;
+  }
+
+  .dayButton {
+    height: 68px;
+  }
+
+  .dateBox {
+    top: 5px;
+    font-size: 0.7rem;
+  }
+
+  .tempBox {
+    right: 1px;
+    bottom: 19px;
+    gap: 0;
+    font-size: 0.56rem;
+  }
+
+  .tempBox span[role='img'] {
+    display: none !important;
+  }
+
+  .rainBox {
+    right: 1px;
+    bottom: 2px;
+    gap: 0;
+    font-size: 0.56rem;
+  }
+
+  .rainBox span[role='img'] {
+    display: none !important;
+  }
 }
