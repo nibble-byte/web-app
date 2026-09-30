@@ -25,7 +25,7 @@ const AppContent = () => {
   const handlePageLoad = (currentPage: string) => {
     switch (currentPage) {
       case PageEnum.Othello: {
-        return <Othello />
+        return <Othello navigationLayout={navigationLayout} />
       }
       case PageEnum.Fractal: {
         return <Fractal />

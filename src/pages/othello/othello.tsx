@@ -12,7 +12,7 @@ import GameModal from './gameModal'
 import GameStats from './gameStats'
 import AISettingsModal from './aiSettingsModal'
 
-const Othello = () => {
+const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) => {
   const [gameState, setGameState] = useState<OthelloState>(
     cloneDeep(DEFAULTGAMESTATE)
   )
@@ -89,6 +89,7 @@ const Othello = () => {
       }
     >
       <AISettingsModal
+        navigationLayout={navigationLayout}
         open={settingsOpen}
         vsAI={gameState.vsAI}
         difficulty={gameState.aiDifficulty}
@@ -96,6 +97,7 @@ const Othello = () => {
         onConfirm={handleConfirmSettings}
       />
       <GameModal
+        navigationLayout={navigationLayout}
         handleReset={handleReset}
         setGameState={setGameState}
         gameState={gameState}

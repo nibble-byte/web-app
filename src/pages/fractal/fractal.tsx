@@ -11,6 +11,7 @@ import {
   Typography,
 } from '@mui/material'
 import { Stage, Layer, Rect, Circle, Line, Group } from 'react-konva'
+import styles from './fractal.module.css'
 
 export type FractalShape = 'square' | 'circle' | 'rectangle' | 'triangle'
 
@@ -146,71 +147,93 @@ const Fractal = () => {
   }
 
   return (
-    <Stack spacing={2} sx={{ maxWidth: STAGE_WIDTH + 32 }}>
-      <Typography variant="body2" color="text.secondary">
-        A recursive motif: each shape spawns smaller copies toward {vertices} evenly spaced directions. Higher depth
-        increases detail (and draw cost).
-      </Typography>
+    <Stack className={styles.fractalPage} spacing={3}>
+      <Box className={styles.intro}>
+        <Typography className={styles.eyebrow}>Pattern laboratory / 04</Typography>
+        <Typography className={styles.title} variant="h1">Recursive bloom</Typography>
+        <Typography className={styles.description} variant="body1">
+          Tune a simple rule set and watch it unfold into a living geometric system.
+        </Typography>
+      </Box>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} alignItems={{ sm: 'center' }}>
-        <Box sx={{ minWidth: 200, flex: 1 }}>
-          <Typography gutterBottom>Vertices: {vertices}</Typography>
-          <Slider
-            value={vertices}
-            onChange={(_e: unknown, v: number | number[]) =>
-              setVertices(Array.isArray(v) ? v[0] : v)
-            }
-            min={3}
-            max={6}
-            step={1}
-            marks
-            valueLabelDisplay="auto"
-          />
+      <Box className={styles.workspace}>
+        <Box className={styles.controls} component="section" aria-label="Fractal controls">
+          <Box className={styles.controlHeading}>
+            <Typography variant="h6">Construction rules</Typography>
+            <Typography variant="caption">Adjust the grammar of the bloom</Typography>
+          </Box>
+          <Stack spacing={2.5}>
+            <Box>
+              <Box className={styles.labelRow}>
+                <Typography variant="body2">Directions</Typography>
+                <Typography className={styles.value} variant="body2">{vertices}</Typography>
+              </Box>
+              <Slider
+                value={vertices}
+                onChange={(_e: unknown, v: number | number[]) =>
+                  setVertices(Array.isArray(v) ? v[0] : v)
+                }
+                min={3}
+                max={6}
+                step={1}
+                marks
+                valueLabelDisplay="auto"
+                aria-label="Number of directions"
+              />
+            </Box>
+            <Box>
+              <Box className={styles.labelRow}>
+                <Typography variant="body2">Recursion depth</Typography>
+                <Typography className={styles.value} variant="body2">{depth}</Typography>
+              </Box>
+              <Slider
+                value={depth}
+                onChange={(_e: unknown, v: number | number[]) =>
+                  setDepth(Array.isArray(v) ? v[0] : v)
+                }
+                min={1}
+                max={6}
+                step={1}
+                marks
+                valueLabelDisplay="auto"
+                aria-label="Recursion depth"
+              />
+            </Box>
+            <FormControl fullWidth>
+              <InputLabel id="fractal-shape-label">Base form</InputLabel>
+              <Select<FractalShape>
+                labelId="fractal-shape-label"
+                label="Base form"
+                value={shape}
+                onChange={handleShapeChange}
+              >
+                <MenuItem value="square">Square</MenuItem>
+                <MenuItem value="circle">Circle</MenuItem>
+                <MenuItem value="rectangle">Rectangle</MenuItem>
+                <MenuItem value="triangle">Triangle</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+          <Box className={styles.readout}>
+            <Typography variant="overline">Current specimen</Typography>
+            <Typography variant="body2">{shape} / {vertices} point orbit / level {depth}</Typography>
+          </Box>
         </Box>
-        <Box sx={{ minWidth: 200, flex: 1 }}>
-          <Typography gutterBottom>Depth: {depth}</Typography>
-          <Slider
-            value={depth}
-            onChange={(_e: unknown, v: number | number[]) =>
-              setDepth(Array.isArray(v) ? v[0] : v)
-            }
-            min={1}
-            max={6}
-            step={1}
-            marks
-            valueLabelDisplay="auto"
-          />
-        </Box>
-        <FormControl sx={{ minWidth: 160 }}>
-          <InputLabel id="fractal-shape-label">Shape</InputLabel>
-          <Select<FractalShape>
-            labelId="fractal-shape-label"
-            label="Shape"
-            value={shape}
-            onChange={handleShapeChange}
-          >
-            <MenuItem value="square">Square</MenuItem>
-            <MenuItem value="circle">Circle</MenuItem>
-            <MenuItem value="rectangle">Rectangle</MenuItem>
-            <MenuItem value="triangle">Triangle</MenuItem>
-          </Select>
-        </FormControl>
-      </Stack>
 
-      <Box
-        sx={{
-          borderRadius: 1,
-          overflow: 'hidden',
-          border: 1,
-          borderColor: 'divider',
-          bgcolor: 'action.hover',
-        }}
-      >
-        <Stage width={STAGE_WIDTH} height={STAGE_HEIGHT}>
-          <Layer>
-            <Group>{fractalTree}</Group>
-          </Layer>
-        </Stage>
+        <Box className={styles.canvasColumn} component="section" aria-label="Fractal preview">
+          <Box className={styles.canvasHeader}>
+            <Typography variant="body2">Live render</Typography>
+            <Typography variant="caption">720 × 520 px</Typography>
+          </Box>
+          <Box className={styles.canvasFrame}>
+            <Box className={styles.canvasGlow} />
+            <Stage width={STAGE_WIDTH} height={STAGE_HEIGHT}>
+              <Layer>
+                <Group>{fractalTree}</Group>
+              </Layer>
+            </Stage>
+          </Box>
+        </Box>
       </Box>
     </Stack>
   )

@@ -3,13 +3,30 @@
 }
 
 .gameBackdrop {
-  top: 68px !important;
   pointer-events: auto !important;
 }
 
+.topBarBackdrop {
+  top: 68px !important;
+}
+
+.sidebarBackdrop {
+  left: 240px !important;
+}
+
 @media (max-width: 820px) {
-  .gameBackdrop {
+  .topBarBackdrop {
     top: 96px !important;
+  }
+
+  .sidebarBackdrop {
+    left: 196px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .sidebarBackdrop {
+    left: 150px !important;
   }
 }
 

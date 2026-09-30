@@ -9,12 +9,13 @@ import { PLAYER } from './constants'
 import { upperFirst } from 'lodash'
 
 interface GameModalProps {
+  navigationLayout: 'top' | 'sidebar'
   gameState: OthelloState
   handleReset: () => void
   setGameState: (gameState: OthelloState) => void
 }
 
-const GameModal: React.FC<GameModalProps> = ({gameState, handleReset, setGameState}) => {
+const GameModal: React.FC<GameModalProps> = ({navigationLayout, gameState, handleReset, setGameState}) => {
 
   const handleClose = () => {
     const newGameState: OthelloState = {
@@ -33,7 +34,9 @@ const GameModal: React.FC<GameModalProps> = ({gameState, handleReset, setGameSta
         aria-describedby="modal-modal-description"
         disableEnforceFocus
         className={styles.gameModalRoot}
-        BackdropProps={{ className: styles.gameBackdrop }}
+        BackdropProps={{
+          className: `${styles.gameBackdrop} ${navigationLayout === 'top' ? styles.topBarBackdrop : styles.sidebarBackdrop}`,
+        }}
       >
         <Box className={styles.gameModal}>
           <Typography id="modal-modal-title" variant="h6" component="h2">

@@ -11,6 +11,7 @@ import styles from './aiSettingsModal.module.css'
 import { Difficulty } from './types'
 
 interface AISettingsModalProps {
+  navigationLayout: 'top' | 'sidebar'
   open: boolean
   vsAI: boolean
   difficulty: Difficulty
@@ -24,6 +25,7 @@ const DIFFICULTY_MARKS = Array.from({ length: 10 }, (_, index) => ({
 }))
 
 const AISettingsModal: React.FC<AISettingsModalProps> = ({
+  navigationLayout,
   open,
   vsAI,
   difficulty,
@@ -51,7 +53,9 @@ const AISettingsModal: React.FC<AISettingsModalProps> = ({
       aria-labelledby="ai-settings-modal-title"
       disableEnforceFocus
       className={styles.settingsModalRoot}
-      BackdropProps={{ className: styles.settingsBackdrop }}
+      BackdropProps={{
+        className: `${styles.settingsBackdrop} ${navigationLayout === 'top' ? styles.topBarBackdrop : styles.sidebarBackdrop}`,
+      }}
     >
       <Box className={styles.settingsModal}>
         <Typography id="ai-settings-modal-title" variant="h6" component="h2">
