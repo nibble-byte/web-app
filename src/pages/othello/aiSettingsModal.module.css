@@ -1,4 +1,20 @@
+.settingsModalRoot {
+  pointer-events: none;
+}
+
+.settingsBackdrop {
+  top: 68px !important;
+  pointer-events: auto !important;
+}
+
+@media (max-width: 820px) {
+  .settingsBackdrop {
+    top: 96px !important;
+  }
+}
+
 .settingsModal {
+  pointer-events: auto;
   position: fixed;
   top: 40%;
   left: 50%;

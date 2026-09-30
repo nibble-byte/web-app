@@ -31,6 +31,9 @@ const GameModal: React.FC<GameModalProps> = ({gameState, handleReset, setGameSta
         onClose={handleClose}
         aria-labelledby="modal-modal-title"
         aria-describedby="modal-modal-description"
+        disableEnforceFocus
+        className={styles.gameModalRoot}
+        BackdropProps={{ className: styles.gameBackdrop }}
       >
         <Box className={styles.gameModal}>
           <Typography id="modal-modal-title" variant="h6" component="h2">

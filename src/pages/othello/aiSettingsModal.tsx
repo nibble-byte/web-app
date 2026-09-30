@@ -49,6 +49,9 @@ const AISettingsModal: React.FC<AISettingsModalProps> = ({
       open={open}
       onClose={onClose}
       aria-labelledby="ai-settings-modal-title"
+      disableEnforceFocus
+      className={styles.settingsModalRoot}
+      BackdropProps={{ className: styles.settingsBackdrop }}
     >
       <Box className={styles.settingsModal}>
         <Typography id="ai-settings-modal-title" variant="h6" component="h2">

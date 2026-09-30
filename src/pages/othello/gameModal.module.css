@@ -1,4 +1,20 @@
+.gameModalRoot {
+  pointer-events: none;
+}
+
+.gameBackdrop {
+  top: 68px !important;
+  pointer-events: auto !important;
+}
+
+@media (max-width: 820px) {
+  .gameBackdrop {
+    top: 96px !important;
+  }
+}
+
 .gameModal {
+  pointer-events: auto;
   position: fixed; /* Or absolute if appropriate */
   top: 40%;
   left: 50%;
