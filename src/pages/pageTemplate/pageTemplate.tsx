@@ -25,7 +25,7 @@ const PageTemplate = ({ title, children }: PageProps) => {
           color: 'text.primary',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-start',
+          justifyContent: 'center',
           width: '100%',
           minWidth: 0,
           borderBottom: '1px solid',
