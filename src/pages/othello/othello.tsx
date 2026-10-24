@@ -21,6 +21,9 @@ const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) 
   const [statsLayout, setStatsLayout] = useState<'top' | 'bottom'>('bottom')
 
   const handleClick = (player: Player, row: number, col: number): void => {
+    if (gameState.vsAI && gameState.player === gameState.aiPlayer) {
+      return
+    }
     if (
       gameState.board[row][col] === '' &&
       `${row},${col}` in gameState.validMoves[player]
@@ -31,12 +34,21 @@ const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) 
   }
 
   const handleReset = () => {
-    setGameState({ ...cloneDeep(DEFAULTGAMESTATE), vsAI: gameState.vsAI, aiDifficulty: gameState.aiDifficulty })
+    setGameState({
+      ...cloneDeep(DEFAULTGAMESTATE),
+      vsAI: gameState.vsAI,
+      aiDifficulty: gameState.aiDifficulty,
+      aiPlayer: gameState.aiPlayer,
+    })
     setHistory([])
   }
 
-  const handleConfirmSettings = (vsAI: boolean, aiDifficulty: Difficulty) => {
-    setGameState({ ...gameState, vsAI, aiDifficulty })
+  const handleConfirmSettings = (
+    vsAI: boolean,
+    aiDifficulty: Difficulty,
+    aiPlayer: Player
+  ) => {
+    setGameState({ ...gameState, vsAI, aiDifficulty, aiPlayer })
     setSettingsOpen(false)
   }
 
@@ -92,6 +104,7 @@ const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) 
         open={settingsOpen}
         vsAI={gameState.vsAI}
         difficulty={gameState.aiDifficulty}
+        aiPlayer={gameState.aiPlayer}
         onClose={() => setSettingsOpen(false)}
         onConfirm={handleConfirmSettings}
       />
@@ -126,7 +139,11 @@ const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) 
                 row={row}
                 col={col}
                 onClick={handleClick}
-                validMoves={gameState.validMoves}
+                validMoves={
+                  gameState.vsAI && gameState.player === gameState.aiPlayer
+                    ? { black: {}, white: {} }
+                    : gameState.validMoves
+                }
               />
             ))}
           </Box>
