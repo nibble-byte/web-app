@@ -4,8 +4,6 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 import Modal from '@mui/material/Modal'
-import FormControlLabel from '@mui/material/FormControlLabel'
-import Switch from '@mui/material/Switch'
 import Slider from '@mui/material/Slider'
 import styles from './aiSettingsModal.module.css'
 import { Difficulty } from './types'
@@ -61,15 +59,20 @@ const AISettingsModal: React.FC<AISettingsModalProps> = ({
         <Typography id="ai-settings-modal-title" variant="h6" component="h2">
           Game Settings
         </Typography>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={pendingVsAI}
-              onChange={(event) => setPendingVsAI(event.target.checked)}
-            />
-          }
-          label={pendingVsAI ? 'Playing Against Bot' : 'Playing Against Human'}
-        />
+        <Box className={styles.modeButtons}>
+          <Button
+            variant={pendingVsAI ? 'outlined' : 'contained'}
+            onClick={() => setPendingVsAI(false)}
+          >
+            Play vs Human
+          </Button>
+          <Button
+            variant={pendingVsAI ? 'contained' : 'outlined'}
+            onClick={() => setPendingVsAI(true)}
+          >
+            Play vs Bot
+          </Button>
+        </Box>
         <Box>
           <Typography variant="subtitle2" gutterBottom>
             Bot Difficulty: {pendingDifficulty} / 10
@@ -88,7 +91,7 @@ const AISettingsModal: React.FC<AISettingsModalProps> = ({
         <Box className={styles.actions}>
           <Button onClick={onClose}>Cancel</Button>
           <Button variant="contained" onClick={handleStart}>
-            Start Game
+            Continue
           </Button>
         </Box>
       </Box>

@@ -46,6 +46,15 @@
   gap: 16px;
 }
 
+.modeButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.modeButtons > button {
+  flex: 1;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;

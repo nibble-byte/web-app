@@ -36,8 +36,7 @@ const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) 
   }
 
   const handleConfirmSettings = (vsAI: boolean, aiDifficulty: Difficulty) => {
-    setGameState({ ...cloneDeep(DEFAULTGAMESTATE), vsAI, aiDifficulty })
-    setHistory([])
+    setGameState({ ...gameState, vsAI, aiDifficulty })
     setSettingsOpen(false)
   }
 
