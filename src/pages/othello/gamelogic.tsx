@@ -160,8 +160,10 @@ const handlePlayerTurn = (
   return nextPlayer
 }
 
-const handleWinningCondition = (chipCounts: ChipCounts): boolean => {
-  return chipCounts.black === 0 || chipCounts.white === 0 || chipCounts.black + chipCounts.white === 64
+const handleWinningCondition = (chipCounts: ChipCounts, validMoves: ValidMoves): boolean => {
+  return chipCounts.black === 0 || 
+  chipCounts.white === 0 || chipCounts.black + chipCounts.white === 64 || 
+  (Object.keys(validMoves[PLAYER.black]).length === 0 && Object.keys(validMoves[PLAYER.white]).length === 0)
 }
 
 const getOpponent = (player: Player): Player =>
@@ -188,7 +190,7 @@ const applyMove = (
     player,
     getOpponent(player)
   )
-  const newWinningCondition = handleWinningCondition(newChipCount)
+  const newWinningCondition = handleWinningCondition(newChipCount, newValidMoves)
 
   return {
     ...gameState,
