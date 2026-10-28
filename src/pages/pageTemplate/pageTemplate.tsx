@@ -4,7 +4,7 @@ import Typography from '@mui/material/Typography'
 
 interface PageProps {
   title: string
-  children: JSX.Element
+  children: React.ReactNode
 }
 
 const PageTemplate = ({ title, children }: PageProps) => {

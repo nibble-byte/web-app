@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import React from 'react'
 import Cell from './cell'
 import styles from './othello.module.css'
-import { applyMove, getBestMove } from './gamelogic'
+import { applyMove, getBestMove, handleWinningCondition } from './gamelogic'
 
-import { DEFAULTGAMESTATE } from './constants'
+import { DEFAULTGAMESTATE, PLAYER } from './constants'
 import { Difficulty, OthelloState, Player } from './types'
 import { cloneDeep } from 'lodash'
 import { Box } from '@mui/material'
@@ -12,7 +12,13 @@ import GameModal from './gameModal'
 import GameStats from './gameStats'
 import AISettingsModal from './aiSettingsModal'
 
-const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) => {
+const Othello = ({
+  navigationLayout,
+  isActive = true,
+}: {
+  navigationLayout: 'top' | 'sidebar'
+  isActive?: boolean
+}) => {
   const [gameState, setGameState] = useState<OthelloState>(
     cloneDeep(DEFAULTGAMESTATE)
   )
@@ -68,6 +74,7 @@ const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) 
 
   useEffect(() => {
     if (
+      !isActive ||
       !gameState.vsAI ||
       gameState.openModal ||
       gameState.player !== gameState.aiPlayer
@@ -85,11 +92,21 @@ const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) 
         const [row, col] = bestMove
         setHistory((prevHistory) => [...prevHistory, gameState])
         setGameState(applyMove(gameState, gameState.aiPlayer, row, col))
+        return
       }
+
+      if (handleWinningCondition(gameState.chipCounts, gameState.validMoves)) {
+        setGameState({ ...gameState, openModal: true })
+        return
+      }
+
+      const opponent =
+        gameState.aiPlayer === PLAYER.black ? PLAYER.white : PLAYER.black
+      setGameState({ ...gameState, player: opponent })
     }, 400)
 
     return () => clearTimeout(timeoutId)
-  }, [gameState])
+  }, [gameState, isActive])
 
   return (
     <Box
@@ -101,7 +118,7 @@ const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) 
     >
       <AISettingsModal
         navigationLayout={navigationLayout}
-        open={settingsOpen}
+        open={settingsOpen && isActive}
         vsAI={gameState.vsAI}
         difficulty={gameState.aiDifficulty}
         aiPlayer={gameState.aiPlayer}
@@ -113,6 +130,7 @@ const Othello = ({ navigationLayout }: { navigationLayout: 'top' | 'sidebar' }) 
         handleReset={handleReset}
         setGameState={setGameState}
         gameState={gameState}
+        isActive={isActive}
       />
       {statsLayout === 'top' && (
         <GameStats

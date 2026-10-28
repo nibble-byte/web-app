@@ -13,9 +13,10 @@ interface GameModalProps {
   gameState: OthelloState
   handleReset: () => void
   setGameState: (gameState: OthelloState) => void
+  isActive?: boolean
 }
 
-const GameModal: React.FC<GameModalProps> = ({navigationLayout, gameState, handleReset, setGameState}) => {
+const GameModal: React.FC<GameModalProps> = ({navigationLayout, gameState, handleReset, setGameState, isActive = true}) => {
 
   const handleClose = () => {
     const newGameState: OthelloState = {
@@ -28,7 +29,7 @@ const GameModal: React.FC<GameModalProps> = ({navigationLayout, gameState, handl
   return (
     <Box>
       <Modal
-        open={gameState.openModal}
+        open={gameState.openModal && isActive}
         onClose={handleClose}
         aria-labelledby="modal-modal-title"
         aria-describedby="modal-modal-description"
