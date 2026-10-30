@@ -1,42 +1,48 @@
-import { createContext, ReactNode, useState, useContext } from 'react';
-import { PageEnum } from '../constants/mapped-enums';
+import { createContext, ReactNode, useContext } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { PageEnum } from '../constants/mapped-enums'
+import { PAGE_ROUTES, getPageFromPath } from '../constants/routes'
 
 interface NavigationContextType {
-  currentPage: PageEnum;
-  handleChangePage: (page: PageEnum) => void;
+  currentPage: PageEnum
+  handleChangePage: (page: PageEnum) => void
 }
 
-const DEFAULT_PAGE = PageEnum.Weather;
-
-const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
+const NavigationContext = createContext<
+  NavigationContextType | undefined
+>(undefined)
 
 interface NavigationProviderProps {
-  children: ReactNode;
+  children: ReactNode
 }
 
-export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children }) => {
-  const [currentPage, setCurrentPage] = useState<PageEnum>(DEFAULT_PAGE);
+export const NavigationProvider = ({
+  children,
+}: NavigationProviderProps) => {
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const currentPage = getPageFromPath(location.pathname)
 
   const handleChangePage = (page: PageEnum) => {
-    setCurrentPage(page);
-  };
-
-  const contextValue: NavigationContextType = {
-    currentPage,
-    handleChangePage,
-  };
+    navigate(PAGE_ROUTES[page])
+  }
 
   return (
-    <NavigationContext.Provider value={contextValue}>
+    <NavigationContext.Provider
+      value={{ currentPage, handleChangePage }}
+    >
       {children}
     </NavigationContext.Provider>
-  );
-};
+  )
+}
 
-export const useNavigation = (): NavigationContextType => {
-  const context = useContext(NavigationContext);
-  if (context === undefined) {
-    throw new Error('useNavigation must be used within a NavigationProvider');
+export const useNavigation = () => {
+  const context = useContext(NavigationContext)
+
+  if (!context) {
+    throw new Error('useNavigation must be used within a NavigationProvider')
   }
-  return context;
-};
+
+  return context
+}
