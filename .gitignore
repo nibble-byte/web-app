@@ -7,3 +7,6 @@ build
 !.dev.vars.example
 .env*
 !.env.example
+
+dist
+coverage
