@@ -5,6 +5,7 @@ import WeatherCard from './weatherCard';
 import getOpenMeteoWeather from './getOpenMeteoWeather';
 import Calendar from './calendar';
 import styles from './weather.module.css';
+import { ParsedForecast, parseForecast } from './parseForecast';
 
 interface Coordinates {
   latitude: number;
@@ -62,7 +63,7 @@ const getCoordinatesFromZip = async (zip: string): Promise<Coordinates> => {
 
 const Weather: React.FC = () => {
   const theme = useTheme();
-  const [weatherData, setWeatherData] = useState<any>(null);
+  const [weatherData, setWeatherData] = useState<ParsedForecast | null>(null);
   const [loading, setLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +84,7 @@ const Weather: React.FC = () => {
           latitude: location.latitude,
           longitude: location.longitude,
         });
-        setWeatherData(weather);
+        setWeatherData(parseForecast(weather));
         setSelectedForecastIndex(null);
       }
     } catch (err: any) {
@@ -109,23 +110,7 @@ const Weather: React.FC = () => {
     }
   };
 
-  // Build an array of daily forecast objects from the merged API response.
-  const dailyForecasts =
-    weatherData && weatherData.daily
-      ? weatherData.daily.time.map((time: string, index: number) => ({
-          index,
-          time,
-          temperature_2m_max: weatherData.daily.temperature_2m_max[index],
-          temperature_2m_min: weatherData.daily.temperature_2m_min[index],
-          weathercode: weatherData.daily.weathercode[index],
-          precipitation_probability_max: weatherData.daily.precipitation_probability_max
-            ? weatherData.daily.precipitation_probability_max[index]
-            : 0,
-          windspeed_10m_max: weatherData.daily.windspeed_10m_max[index],
-          sunrise: weatherData.daily.sunrise[index],
-          sunset: weatherData.daily.sunset[index],
-        }))
-      : [];
+  const dailyForecasts = weatherData?.dailyForecasts ?? [];
 
   return (
     <Box className={`${styles.weatherPage} ${theme.palette.mode === 'dark' ? styles.dark : ''}`}>
@@ -181,7 +166,7 @@ const Weather: React.FC = () => {
       {dailyForecasts.length > 0 && (
         <Box className={styles.forecastContent}>
           {/* Display detailed forecast for the selected date (with hourly graph) */}
-          {selectedForecastIndex !== null && (
+          {selectedForecastIndex !== null && weatherData && (
             <Box className={styles.detailSection}>
               <WeatherCard 
                 forecastData={dailyForecasts[selectedForecastIndex]} 
