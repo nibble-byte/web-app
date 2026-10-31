@@ -214,6 +214,35 @@ const describeIssues = (
   return issues
 }
 
+// Fetches only the archive for an explicit date range (YYYY-MM-DD, location-local), used to extend the timeline into the past.
+export const getOpenMeteoHistory = async ({
+  latitude,
+  longitude,
+  startDate,
+  endDate,
+}: LocationKey & { startDate: string; endDate: string }): Promise<{
+  daily: WeatherTable | null
+  hourly: WeatherTable | null
+}> => {
+  const url =
+    'https://archive-api.open-meteo.com/v1/archive?' +
+    new URLSearchParams({
+      latitude: latitude.toString(),
+      longitude: longitude.toString(),
+      daily: dailyParams,
+      hourly: hourlyParams,
+      temperature_unit: 'fahrenheit',
+      timezone: 'auto',
+      start_date: startDate,
+      end_date: endDate,
+    })
+  const payload = await fetchSource('historical', url)
+  return {
+    daily: readTable(payload, 'daily'),
+    hourly: readTable(payload, 'hourly'),
+  }
+}
+
 const getOpenMeteoWeather = async ({
   latitude,
   longitude,

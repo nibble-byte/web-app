@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Calendar from './calendar'
 import { DailyForecast } from './parseForecast'
@@ -133,6 +133,46 @@ describe('Calendar', () => {
       )
       await user.click(screen.getByRole('button', { name: /March 11/ }))
       expect(select).toHaveBeenCalledWith(1)
+    })
+
+    describe('reaching the start', () => {
+      const scrollStripTo = (strip: HTMLElement, scrollLeft: number) => {
+        Object.defineProperty(strip, 'scrollLeft', {
+          value: scrollLeft,
+          configurable: true,
+          writable: true,
+        })
+        fireEvent.scroll(strip)
+      }
+
+      const renderStrip = (onReachStart?: () => void) => {
+        render(
+          <Calendar
+            layout="strip"
+            dailyForecasts={[day(0), day(1), day(2)]}
+            selectedForecastIndex={1}
+            setSelectedForecastIndex={vi.fn()}
+            onReachStart={onReachStart}
+          />
+        )
+        return screen.getByRole('group', { name: 'Select a day' })
+      }
+
+      it('asks for earlier days when scrolled to the left edge', () => {
+        const onReachStart = vi.fn()
+        scrollStripTo(renderStrip(onReachStart), 0)
+        expect(onReachStart).toHaveBeenCalled()
+      })
+
+      it('does not ask while scrolled away from the edge', () => {
+        const onReachStart = vi.fn()
+        scrollStripTo(renderStrip(onReachStart), 400)
+        expect(onReachStart).not.toHaveBeenCalled()
+      })
+
+      it('ignores scrolling when no handler is provided', () => {
+        expect(() => scrollStripTo(renderStrip(), 0)).not.toThrow()
+      })
     })
   })
 })

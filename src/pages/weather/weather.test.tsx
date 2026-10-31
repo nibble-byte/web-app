@@ -576,6 +576,101 @@ describe('Weather', () => {
     ).toHaveAttribute('aria-pressed', 'true')
   })
 
+  describe('loading earlier days in the day strip', () => {
+    const openStrip = async (earlier: () => Response) => {
+      const user = userEvent.setup()
+      let archiveCalls = 0
+      const fetchMock = mockFetch([
+        {
+          match: 'zippopotam.us',
+          handler: () => jsonResponse(zippopotamResponse()),
+        },
+        {
+          match: 'archive-api.open-meteo.com',
+          handler: () => {
+            archiveCalls += 1
+            return archiveCalls === 1
+              ? jsonResponse(buildOpenMeteoResponse(2, 0))
+              : earlier()
+          },
+        },
+        {
+          match: 'api.open-meteo.com/v1/forecast',
+          handler: () => jsonResponse(buildOpenMeteoResponse(2, 2)),
+        },
+      ])
+      renderWeather()
+      await user.type(screen.getByLabelText('Zip Code'), '98101')
+      await user.click(screen.getByRole('button', { name: 'Search' }))
+      await screen.findByText('Daily forecast')
+      await user.click(screen.getByRole('button', { name: /March 11/ }))
+      const strip = screen.getByRole('group', { name: 'Select a day' })
+      return { strip, fetchMock }
+    }
+
+    const scrollToStart = (strip: HTMLElement) => {
+      Object.defineProperty(strip, 'scrollLeft', {
+        value: 0,
+        configurable: true,
+        writable: true,
+      })
+      fireEvent.scroll(strip)
+    }
+
+    it('adds earlier days when the strip is scrolled to its start and keeps the selection', async () => {
+      const { strip, fetchMock } = await openStrip(() =>
+        jsonResponse(buildOpenMeteoResponse(2, -2))
+      )
+      expect(within(strip).getAllByRole('button')).toHaveLength(4)
+
+      scrollToStart(strip)
+
+      expect(
+        await within(strip).findByRole('button', { name: /March 8/ })
+      ).toBeInTheDocument()
+      expect(within(strip).getAllByRole('button')).toHaveLength(6)
+      expect(
+        within(strip).getByRole('button', { name: /March 11/ })
+      ).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByText(/Wednesday, March 11, 2026/)).toBeInTheDocument()
+
+      const archiveUrls = fetchMock.mock.calls
+        .map(([url]) => new URL(String(url)))
+        .filter((url) => url.host === 'archive-api.open-meteo.com')
+      const earlierRequest = archiveUrls[1]
+      expect(earlierRequest.searchParams.get('latitude')).toBe('47.6')
+      // The earlier page ends the day before the first loaded day and spans 10 days.
+      const start = earlierRequest.searchParams.get('start_date')!
+      const end = earlierRequest.searchParams.get('end_date')!
+      expect((Date.parse(end) - Date.parse(start)) / 86400000).toBe(9)
+    })
+
+    it('stops asking after earlier days cannot be loaded', async () => {
+      const { strip, fetchMock } = await openStrip(
+        () => new Response('', { status: 500, statusText: 'Server Error' })
+      )
+
+      scrollToStart(strip)
+      await waitFor(() =>
+        expect(
+          fetchMock.mock.calls.filter(([url]) =>
+            String(url).includes('archive-api')
+          )
+        ).toHaveLength(2)
+      )
+      scrollToStart(strip)
+      scrollToStart(strip)
+
+      expect(within(strip).getAllByRole('button')).toHaveLength(4)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(
+        fetchMock.mock.calls.filter(([url]) =>
+          String(url).includes('archive-api')
+        )
+      ).toHaveLength(2)
+    })
+  })
+
   it('uses the browser location when requested', async () => {
     const user = userEvent.setup()
     stubGeolocation((success) =>

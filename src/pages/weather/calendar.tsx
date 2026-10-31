@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Box, Button } from "@mui/material";
 import moment, { Moment } from "moment";
 import styles from './calendar.module.css';
@@ -10,15 +10,44 @@ interface CalendarProps {
   setSelectedForecastIndex: (index: number) => void;
   // 'grid' is the full month view; 'strip' is a single horizontally scrollable row of forecast days.
   layout?: 'grid' | 'strip';
+  // Strip only: called when the user scrolls to the first day so earlier days can be loaded.
+  onReachStart?: () => void;
 }
+
+// Distance from the left edge (px) that counts as having reached the start of the strip.
+const STRIP_EDGE_THRESHOLD = 40;
 
 export const Calendar: React.FC<CalendarProps> = ({
   dailyForecasts,
   selectedForecastIndex,
   setSelectedForecastIndex,
   layout = 'grid',
+  onReachStart,
 }) => {
   const stripRef = useRef<HTMLDivElement>(null);
+
+  // Left-edge scroll width and first date before an update, so prepended days do not shift what the user is looking at.
+  const stripSnapshot = useRef<{ width: number; firstTime: string } | null>(null);
+  const firstTime = dailyForecasts[0]?.time;
+
+  // After earlier days are prepended, move the scroll position by the width they added.
+  useLayoutEffect(() => {
+    const strip = stripRef.current;
+    const snapshot = stripSnapshot.current;
+    if (strip && snapshot && snapshot.firstTime !== firstTime) {
+      strip.scrollLeft += strip.scrollWidth - snapshot.width;
+    }
+    stripSnapshot.current = null;
+  }, [firstTime]);
+
+  // Asks for earlier days when the strip is scrolled close to its left edge.
+  const handleStripScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const strip = event.currentTarget;
+    if (onReachStart && strip.scrollLeft <= STRIP_EDGE_THRESHOLD) {
+      stripSnapshot.current = { width: strip.scrollWidth, firstTime };
+      onReachStart();
+    }
+  };
 
   // Keep the selected day visible when the strip is scrolled.
   useEffect(() => {
@@ -114,7 +143,7 @@ export const Calendar: React.FC<CalendarProps> = ({
 
   if (layout === 'strip') {
     return (
-      <Box className={styles.strip} ref={stripRef} role="group" aria-label="Select a day">
+      <Box className={styles.strip} ref={stripRef} onScroll={handleStripScroll} role="group" aria-label="Select a day">
         {dailyForecasts.map((f) => renderDay(moment(f.time)))}
       </Box>
     );

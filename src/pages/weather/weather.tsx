@@ -2,10 +2,11 @@
 import React, { useRef, useState } from 'react';
 import { Box, Typography, Button, useTheme, TextField } from '@mui/material';
 import WeatherCard from './weatherCard';
-import getOpenMeteoWeather from './getOpenMeteoWeather';
+import getOpenMeteoWeather, { getOpenMeteoHistory } from './getOpenMeteoWeather';
+import moment from 'moment';
 import Calendar from './calendar';
 import styles from './weather.module.css';
-import { ParsedForecast, parseForecast } from './parseForecast';
+import { ParsedForecast, mergeForecasts, parseForecast } from './parseForecast';
 
 interface Coordinates {
   latitude: number;
@@ -45,6 +46,11 @@ const handleLocation = (): Promise<Coordinates> => {
   });
 };
 
+// Days of history added each time the day strip is scrolled to its start.
+const HISTORY_PAGE_DAYS = 10;
+// Earliest day the strip will load, to keep requests reasonable.
+const MAX_HISTORY_DAYS = 365;
+
 // Fetch coordinates from a US zip code using OpenWeatherMap Geocoding API
 const getCoordinatesFromZip = async (zip: string): Promise<Coordinates> => {
   // You can use your own API key or a different geocoding service if you prefer
@@ -73,6 +79,8 @@ const Weather: React.FC = () => {
   const [selectedForecastIndex, setSelectedForecastIndex] = useState<number | null>(null);
   const [zipCode, setZipCode] = useState<string>('');
   const [partialNotice, setPartialNotice] = useState(false);
+  const loadingEarlier = useRef(false);
+  const [canLoadEarlier, setCanLoadEarlier] = useState(true);
 
   // Only the most recent request may update the page, so slower earlier requests cannot overwrite it.
   const latestRequest = useRef(0);
@@ -83,6 +91,8 @@ const Weather: React.FC = () => {
     setError(null);
     setPartialNotice(false);
     setWeatherData(null);
+    setCanLoadEarlier(true);
+    loadingEarlier.current = false;
     setSelectedForecastIndex(null);
     return latestRequest.current;
   };
@@ -106,6 +116,38 @@ const Weather: React.FC = () => {
       if (requestId === latestRequest.current) setError(err.message);
     } finally {
       if (requestId === latestRequest.current) setLoading(false);
+    }
+  };
+
+  // Loads another page of earlier days for the day strip and keeps the selected day selected.
+  const loadEarlierDays = async () => {
+    const first = weatherData?.dailyForecasts[0]?.time;
+    if (!first || !userLocation || loadingEarlier.current || !canLoadEarlier) return;
+    const limit = moment().subtract(MAX_HISTORY_DAYS, 'days').format('YYYY-MM-DD');
+    if (first <= limit) {
+      setCanLoadEarlier(false);
+      return;
+    }
+    const requestId = latestRequest.current;
+    loadingEarlier.current = true;
+    try {
+      const history = await getOpenMeteoHistory({
+        ...userLocation,
+        startDate: moment(first).subtract(HISTORY_PAGE_DAYS, 'days').format('YYYY-MM-DD'),
+        endDate: moment(first).subtract(1, 'days').format('YYYY-MM-DD'),
+      });
+      if (requestId !== latestRequest.current) return;
+      const merged = mergeForecasts(weatherData!, parseForecast(history));
+      const added = merged.dailyForecasts.length - weatherData!.dailyForecasts.length;
+      setWeatherData(merged);
+      // Earlier days are inserted before every existing day, so the selection shifts by the number added.
+      setSelectedForecastIndex((index) => (index === null ? index : index + added));
+      if (added === 0) setCanLoadEarlier(false);
+    } catch {
+      // No earlier data (or the request failed): stop asking rather than retrying on every scroll event.
+      if (requestId === latestRequest.current) setCanLoadEarlier(false);
+    } finally {
+      loadingEarlier.current = false;
     }
   };
 
@@ -189,6 +231,7 @@ const Weather: React.FC = () => {
                 dayPicker={
                   <Calendar
                     layout="strip"
+                    onReachStart={canLoadEarlier ? loadEarlierDays : undefined}
                     dailyForecasts={dailyForecasts}
                     selectedForecastIndex={selectedForecastIndex}
                     setSelectedForecastIndex={setSelectedForecastIndex}

@@ -1,4 +1,7 @@
-import getOpenMeteoWeather, { WeatherRequestError } from './getOpenMeteoWeather'
+import getOpenMeteoWeather, {
+  getOpenMeteoHistory,
+  WeatherRequestError,
+} from './getOpenMeteoWeather'
 import { INCOMPLETE_FORECAST_MESSAGE } from './parseForecast'
 import { jsonResponse, mockFetch } from '../../test/mocks/network'
 import { buildOpenMeteoResponse } from '../../test/mocks/weatherFixtures'
@@ -404,5 +407,49 @@ describe('getOpenMeteoWeather', () => {
       ])
       expect(result.hourly.temperature_2m).toEqual([null, 5])
     })
+  })
+})
+
+describe('getOpenMeteoHistory', () => {
+  it('requests only the archive for the given range', async () => {
+    const fetchMock = mockFetch([
+      {
+        match: ARCHIVE,
+        handler: () => jsonResponse(buildOpenMeteoResponse(2, 0)),
+      },
+    ])
+
+    const result = await getOpenMeteoHistory({
+      ...location,
+      startDate: '2026-03-01',
+      endDate: '2026-03-09',
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const url = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(url.host).toBe(ARCHIVE)
+    expect(url.searchParams.get('start_date')).toBe('2026-03-01')
+    expect(url.searchParams.get('end_date')).toBe('2026-03-09')
+    expect(url.searchParams.get('temperature_unit')).toBe('fahrenheit')
+    expect(result.daily?.time).toEqual(['2026-03-10', '2026-03-11'])
+  })
+
+  it('rejects when the archive request fails', async () => {
+    mockFetch([
+      {
+        match: ARCHIVE,
+        handler: () =>
+          new Response('', { status: 500, statusText: 'Server Error' }),
+      },
+    ])
+    await expect(
+      getOpenMeteoHistory({
+        ...location,
+        startDate: '2026-03-01',
+        endDate: '2026-03-09',
+      })
+    ).rejects.toThrow(
+      'Error fetching historical weather data: 500 Server Error'
+    )
   })
 })

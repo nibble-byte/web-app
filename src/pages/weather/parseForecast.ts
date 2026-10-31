@@ -153,3 +153,29 @@ export const parseForecast = (data: unknown): ParsedForecast => {
     omittedRecords: omitted,
   }
 }
+
+// Combines two parsed forecasts by date/time; on duplicates the existing forecast wins. Days are re-sorted and re-indexed.
+export const mergeForecasts = (
+  existing: ParsedForecast,
+  additional: ParsedForecast
+): ParsedForecast => {
+  const known = new Set(existing.dailyForecasts.map((day) => day.time))
+  const days = [
+    ...existing.dailyForecasts,
+    ...additional.dailyForecasts.filter((day) => !known.has(day.time)),
+  ]
+    .sort(byTime)
+    .map((day, index) => ({ ...day, index }))
+
+  const points = new Map<string, number>()
+  for (const hourly of [additional.hourly, existing.hourly]) {
+    hourly.time.forEach((time, i) => points.set(time, hourly.temperature_2m[i]))
+  }
+  const times = [...points.keys()].sort()
+
+  return {
+    dailyForecasts: days,
+    hourly: { time: times, temperature_2m: times.map((t) => points.get(t)!) },
+    omittedRecords: existing.omittedRecords + additional.omittedRecords,
+  }
+}

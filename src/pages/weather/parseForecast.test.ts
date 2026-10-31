@@ -1,6 +1,7 @@
 import {
   IncompleteForecastError,
   isValidTimestamp,
+  mergeForecasts,
   parseForecast,
 } from './parseForecast'
 import { buildOpenMeteoResponse } from '../../test/mocks/weatherFixtures'
@@ -241,4 +242,31 @@ describe('isValidTimestamp', () => {
     null,
     undefined,
   ])('rejects %j', (value) => expect(isValidTimestamp(value)).toBe(false))
+})
+
+describe('mergeForecasts', () => {
+  const forecast = (startIndex: number, days: number) =>
+    parseForecast(buildOpenMeteoResponse(days, startIndex))
+
+  it('prepends earlier days in order and re-indexes them', () => {
+    const merged = mergeForecasts(forecast(2, 2), forecast(0, 2))
+    expect(merged.dailyForecasts.map((d) => [d.index, d.time])).toEqual([
+      [0, '2026-03-10'],
+      [1, '2026-03-11'],
+      [2, '2026-03-12'],
+      [3, '2026-03-13'],
+    ])
+    expect(merged.hourly.time).toHaveLength(merged.hourly.temperature_2m.length)
+    expect(merged.hourly.time).toEqual([...merged.hourly.time].sort())
+  })
+
+  it('keeps the existing record when a date appears in both', () => {
+    const existing = forecast(0, 1)
+    const additional = parseForecast({
+      daily: { time: ['2026-03-10'], temperature_2m_max: [999] },
+    })
+    const merged = mergeForecasts(existing, additional)
+    expect(merged.dailyForecasts).toHaveLength(1)
+    expect(merged.dailyForecasts[0].temperature_2m_max).toBe(60)
+  })
 })
