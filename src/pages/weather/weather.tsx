@@ -185,6 +185,7 @@ const Weather: React.FC = () => {
               <WeatherCard 
                 forecastData={selectedForecast} 
                 hourlyData={weatherData.hourly} 
+                onClose={() => setSelectedForecastIndex(null)}
               />
             </Box>
           )}

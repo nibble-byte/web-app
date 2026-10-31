@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import WeatherCard from './weatherCard'
 import { DailyForecast, HourlyForecast } from './parseForecast'
 import { renderWithProviders } from '../../test/renderWithProviders'
@@ -23,8 +24,12 @@ const hourlyFor = (date: string): HourlyForecast => ({
   temperature_2m: [50, 51, 52],
 })
 
+const onClose = vi.fn()
+
 const renderCard = (daily: DailyForecast, hourly: HourlyForecast = noHourly) =>
-  renderWithProviders(<WeatherCard forecastData={daily} hourlyData={hourly} />)
+  renderWithProviders(
+    <WeatherCard forecastData={daily} hourlyData={hourly} onClose={onClose} />
+  )
 
 const metric = (label: string) => screen.getByText(label).parentElement!
 
@@ -111,6 +116,15 @@ describe('WeatherCard', () => {
       expect(screen.getByText('DAILY HIGH')).toBeInTheDocument()
       expect(screen.getAllByLabelText('Unavailable').length).toBeGreaterThan(0)
     })
+  })
+
+  it('asks to be closed when the Close button is clicked', async () => {
+    const user = userEvent.setup()
+    renderCard(forecast(), hourlyFor('2026-03-10'))
+    await user.click(
+      screen.getByRole('button', { name: 'Close weather details' })
+    )
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   describe('hourly chart', () => {

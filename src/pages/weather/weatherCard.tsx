@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Button, Typography } from '@mui/material';
 import moment from 'moment';
 import styles from './weatherCard.module.css';
 import { weatherCodeIcons } from './weatherCodeMapping';
@@ -19,6 +19,7 @@ import { DailyForecast, HourlyForecast } from './parseForecast';
 interface WeatherCardProps {
     forecastData: DailyForecast;
     hourlyData: HourlyForecast;
+    onClose: () => void;
 }
 
 const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
@@ -64,6 +65,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         sunset,
     },
     hourlyData,
+    onClose,
 }) => {
     const theme = useTheme();
     const dayName = moment(time).format('dddd');
@@ -93,6 +95,11 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
 
     return (
         <Box className={`${styles.weatherCard} ${theme.palette.mode === 'dark' ? styles.dark : ''}`}>
+            <Box className={styles.closeRow}>
+                <Button size="small" onClick={onClose} aria-label="Close weather details">
+                    Close
+                </Button>
+            </Box>
             <Box className={styles.summary}>
                 <Box className={styles.conditions}>
                     <i className={`wi ${iconClass}`} aria-hidden="true"></i>

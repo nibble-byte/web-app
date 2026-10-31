@@ -508,6 +508,37 @@ describe('Weather', () => {
     })
   })
 
+  it('closes the weather card to leave only the calendar, and reopens it when a day is picked', async () => {
+    const user = userEvent.setup()
+    mockFetch([
+      {
+        match: 'zippopotam.us',
+        handler: () => jsonResponse(zippopotamResponse()),
+      },
+      ...openMeteoRoutes(),
+    ])
+    renderWeather()
+    await user.type(screen.getByLabelText('Zip Code'), '98101')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    await screen.findByText('Daily forecast')
+
+    await user.click(screen.getByRole('button', { name: /March 10/ }))
+    expect(screen.getByText('DAILY CONDITIONS')).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Close weather details' })
+    )
+    expect(screen.queryByText('DAILY CONDITIONS')).not.toBeInTheDocument()
+    expect(screen.getByText('Daily forecast')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /March 10/ })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+
+    await user.click(screen.getByRole('button', { name: /March 11/ }))
+    expect(screen.getByText('DAILY CONDITIONS')).toBeInTheDocument()
+  })
+
   it('uses the browser location when requested', async () => {
     const user = userEvent.setup()
     stubGeolocation((success) =>

@@ -124,6 +124,12 @@
   border-top: 1px solid var(--card-line);
 }
 
+.closeRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
 .chartTitle {
   margin-bottom: 10px !important;
   font-size: 1rem !important;
