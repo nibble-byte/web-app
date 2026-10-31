@@ -179,32 +179,39 @@ const Weather: React.FC = () => {
 
       {dailyForecasts.length > 0 && (
         <Box className={styles.forecastContent}>
-          {/* Display detailed forecast for the selected date (with hourly graph) */}
-          {selectedForecast && weatherData && (
+          {/* With a day selected, the card replaces the month calendar and hosts a scrollable day strip. */}
+          {selectedForecast && weatherData ? (
             <Box className={styles.detailSection}>
-              <WeatherCard 
-                forecastData={selectedForecast} 
-                hourlyData={weatherData.hourly} 
+              <WeatherCard
+                forecastData={selectedForecast}
+                hourlyData={weatherData.hourly}
                 onClose={() => setSelectedForecastIndex(null)}
+                dayPicker={
+                  <Calendar
+                    layout="strip"
+                    dailyForecasts={dailyForecasts}
+                    selectedForecastIndex={selectedForecastIndex}
+                    setSelectedForecastIndex={setSelectedForecastIndex}
+                  />
+                }
+              />
+            </Box>
+          ) : (
+            <Box className={styles.calendarSection}>
+              <Box className={styles.sectionHeading}>
+                <Box>
+                  <Typography className={styles.eyebrow}>THE WEEK AHEAD</Typography>
+                  <Typography component="h3" className={styles.sectionTitle}>Daily forecast</Typography>
+                </Box>
+                <Typography className={styles.sectionHint}>Select a day for the hourly outlook</Typography>
+              </Box>
+              <Calendar
+                dailyForecasts={dailyForecasts}
+                selectedForecastIndex={selectedForecastIndex}
+                setSelectedForecastIndex={setSelectedForecastIndex}
               />
             </Box>
           )}
-
-          {/* Date selector header and calendar */}
-          <Box className={styles.calendarSection}>
-            <Box className={styles.sectionHeading}>
-              <Box>
-                <Typography className={styles.eyebrow}>THE WEEK AHEAD</Typography>
-                <Typography component="h3" className={styles.sectionTitle}>Daily forecast</Typography>
-              </Box>
-              <Typography className={styles.sectionHint}>Select a day for the hourly outlook</Typography>
-            </Box>
-            <Calendar
-              dailyForecasts={dailyForecasts}
-              selectedForecastIndex={selectedForecastIndex}
-              setSelectedForecastIndex={setSelectedForecastIndex}
-            />
-          </Box>
         </Box>
       )}
     </Box>

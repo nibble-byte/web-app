@@ -115,6 +115,21 @@
   background: rgba(255, 255, 255, 0.16);
 }
 
+/* Single scrollable row of days, shown inside the weather card. */
+.strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x proximity;
+}
+
+.strip .dayButton {
+  flex: 0 0 84px;
+  width: 84px;
+  scroll-snap-align: center;
+}
+
 @media (max-width: 560px) {
   .weekdays,
   .week {
@@ -123,6 +138,11 @@
 
   .dayButton {
     height: 68px;
+  }
+
+  .strip .dayButton {
+    flex-basis: 68px;
+    width: 68px;
   }
 
   .dateBox {

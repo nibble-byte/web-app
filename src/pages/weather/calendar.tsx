@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Box, Button } from "@mui/material";
 import moment, { Moment } from "moment";
 import styles from './calendar.module.css';
@@ -7,13 +8,25 @@ interface CalendarProps {
   dailyForecasts: DailyForecast[];
   selectedForecastIndex: number | null;
   setSelectedForecastIndex: (index: number) => void;
+  // 'grid' is the full month view; 'strip' is a single horizontally scrollable row of forecast days.
+  layout?: 'grid' | 'strip';
 }
 
 export const Calendar: React.FC<CalendarProps> = ({
   dailyForecasts,
   selectedForecastIndex,
   setSelectedForecastIndex,
+  layout = 'grid',
 }) => {
+  const stripRef = useRef<HTMLDivElement>(null);
+
+  // Keep the selected day visible when the strip is scrolled.
+  useEffect(() => {
+    if (layout !== 'strip') return;
+    const selected = stripRef.current?.querySelector('[aria-pressed="true"]');
+    selected?.scrollIntoView?.({ inline: 'center', block: 'nearest' });
+  }, [layout, selectedForecastIndex]);
+
   // Use the first and last forecast dates to determine the calendar range
   const firstForecastDate = moment(dailyForecasts[0].time);
   const lastForecastDate = moment(dailyForecasts[dailyForecasts.length - 1].time);
@@ -41,36 +54,8 @@ export const Calendar: React.FC<CalendarProps> = ({
     weeks.push(calendarDates.slice(i, i + 7));
   }
 
-  return (
-    <Box className={styles.calendar}>
-      {/* Month and Year Header */}
-      <Box className={styles.monthHeading}>
-        {firstForecastDate.format("MMMM YYYY")}
-      </Box>
-
-      {/* Weekday Headers */}
-      <Box
-        className={styles.weekdays}
-      >
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
-          <Box key={dayName}>
-            {dayName}
-          </Box>
-        ))}
-      </Box>
-
-      {/* Calendar Grid: Only render weeks with at least one available date */}
-      {weeks.map((week, weekIdx) => {
-        const weekHasData = week.some((cellDate) =>
-          availableDates.includes(cellDate.format("YYYY-MM-DD"))
-        );
-        if (!weekHasData) return null;
-        return (
-          <Box
-            key={weekIdx}
-            className={styles.week}
-          >
-            {week.map((cellDate, index) => {
+  // Renders one day button; used by both the month grid and the scrollable strip.
+  const renderDay = (cellDate: Moment) => {
               const formattedDate = cellDate.format("YYYY-MM-DD");
               const isAvailable = availableDates.includes(formattedDate);
               const isToday = cellDate.isSame(moment(), "day");
@@ -90,7 +75,7 @@ export const Calendar: React.FC<CalendarProps> = ({
 
               return (
                 <Button
-                  key={index}
+                  key={formattedDate}
                   variant="outlined"
                   className={`${styles.dayButton} ${isSelected ? styles.selectedDay : ''} ${isToday ? styles.today : ''}`}
                   onClick={() => {
@@ -125,7 +110,46 @@ export const Calendar: React.FC<CalendarProps> = ({
                   )}
                 </Button>
               );
-            })}
+  };
+
+  if (layout === 'strip') {
+    return (
+      <Box className={styles.strip} ref={stripRef} role="group" aria-label="Select a day">
+        {dailyForecasts.map((f) => renderDay(moment(f.time)))}
+      </Box>
+    );
+  }
+
+  return (
+    <Box className={styles.calendar}>
+      {/* Month and Year Header */}
+      <Box className={styles.monthHeading}>
+        {firstForecastDate.format("MMMM YYYY")}
+      </Box>
+
+      {/* Weekday Headers */}
+      <Box
+        className={styles.weekdays}
+      >
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
+          <Box key={dayName}>
+            {dayName}
+          </Box>
+        ))}
+      </Box>
+
+      {/* Calendar Grid: Only render weeks with at least one available date */}
+      {weeks.map((week, weekIdx) => {
+        const weekHasData = week.some((cellDate) =>
+          availableDates.includes(cellDate.format("YYYY-MM-DD"))
+        );
+        if (!weekHasData) return null;
+        return (
+          <Box
+            key={weekIdx}
+            className={styles.week}
+          >
+            {week.map((cellDate) => renderDay(cellDate))}
           </Box>
         );
       })}

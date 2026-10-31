@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Weather from './weather'
 import { renderWithProviders } from '../../test/renderWithProviders'
@@ -256,7 +256,10 @@ describe('Weather', () => {
       await user.click(first)
 
       expect(screen.getByText('DAILY CONDITIONS')).toBeInTheDocument()
-      expect(first).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: /March 10/ })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      )
       expect(screen.getAllByLabelText('Unavailable').length).toBeGreaterThan(0)
       expect(document.body).not.toHaveTextContent(/NaN|undefined|Invalid date/)
       expect(screen.queryByText('0%')).not.toBeInTheDocument()
@@ -537,6 +540,40 @@ describe('Weather', () => {
 
     await user.click(screen.getByRole('button', { name: /March 11/ }))
     expect(screen.getByText('DAILY CONDITIONS')).toBeInTheDocument()
+  })
+
+  it('replaces the month calendar with a day strip inside the weather card', async () => {
+    const user = userEvent.setup()
+    mockFetch([
+      {
+        match: 'zippopotam.us',
+        handler: () => jsonResponse(zippopotamResponse()),
+      },
+      ...openMeteoRoutes(),
+    ])
+    renderWeather()
+    await user.type(screen.getByLabelText('Zip Code'), '98101')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    await screen.findByText('Daily forecast')
+    expect(screen.queryByRole('group', { name: 'Select a day' })).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /March 10/ }))
+
+    // The month grid and its heading are gone; the strip lists every forecast day.
+    expect(screen.queryByText('Daily forecast')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sun')).not.toBeInTheDocument()
+    const strip = screen.getByRole('group', { name: 'Select a day' })
+    expect(within(strip).getAllByRole('button')).toHaveLength(4)
+    expect(
+      within(strip).getByRole('button', { name: /March 10/ })
+    ).toHaveAttribute('aria-pressed', 'true')
+
+    // Picking another day in the strip updates the card.
+    await user.click(within(strip).getByRole('button', { name: /March 12/ }))
+    expect(screen.getByText(/Thursday, March 12, 2026/)).toBeInTheDocument()
+    expect(
+      within(strip).getByRole('button', { name: /March 12/ })
+    ).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('uses the browser location when requested', async () => {

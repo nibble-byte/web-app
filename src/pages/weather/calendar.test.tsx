@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Calendar from './calendar'
 import { DailyForecast } from './parseForecast'
@@ -100,5 +100,39 @@ describe('Calendar', () => {
     expect(
       screen.getByRole('button', { name: /Tuesday, March 10/ })
     ).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  describe('strip layout', () => {
+    it('renders only forecast days in one group, without the month grid', () => {
+      render(
+        <Calendar
+          layout="strip"
+          dailyForecasts={[day(0), day(2), day(9)]}
+          selectedForecastIndex={2}
+          setSelectedForecastIndex={vi.fn()}
+        />
+      )
+      const strip = screen.getByRole('group', { name: 'Select a day' })
+      expect(within(strip).getAllByRole('button')).toHaveLength(3)
+      expect(screen.queryByText('Sun')).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /Thursday, March 19/ })
+      ).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it('selects a day when clicked', async () => {
+      const user = userEvent.setup()
+      const select = vi.fn()
+      render(
+        <Calendar
+          layout="strip"
+          dailyForecasts={[day(0), day(1)]}
+          selectedForecastIndex={0}
+          setSelectedForecastIndex={select}
+        />
+      )
+      await user.click(screen.getByRole('button', { name: /March 11/ }))
+      expect(select).toHaveBeenCalledWith(1)
+    })
   })
 })

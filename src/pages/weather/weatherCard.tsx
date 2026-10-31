@@ -20,6 +20,8 @@ interface WeatherCardProps {
     forecastData: DailyForecast;
     hourlyData: HourlyForecast;
     onClose: () => void;
+    // Day picker rendered at the top of the card.
+    dayPicker?: React.ReactNode;
 }
 
 const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
@@ -66,6 +68,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     },
     hourlyData,
     onClose,
+    dayPicker,
 }) => {
     const theme = useTheme();
     const dayName = moment(time).format('dddd');
@@ -100,6 +103,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                     Close
                 </Button>
             </Box>
+            {dayPicker && <Box className={styles.dayPicker}>{dayPicker}</Box>}
             <Box className={styles.summary}>
                 <Box className={styles.conditions}>
                     <i className={`wi ${iconClass}`} aria-hidden="true"></i>
