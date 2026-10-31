@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import WeatherCard from './weatherCard'
 import { DailyForecast, HourlyForecast } from './parseForecast'
@@ -141,6 +141,50 @@ describe('WeatherCard', () => {
     it('is hidden when hourly data only covers other days', () => {
       renderCard(forecast(), hourlyFor('2026-03-11'))
       expect(screen.queryByText('Hourly temperature')).not.toBeInTheDocument()
+    })
+
+    describe('scrolling across days', () => {
+      const twoDays: HourlyForecast = {
+        time: ['2026-03-09', '2026-03-10'].flatMap((date) =>
+          Array.from(
+            { length: 24 },
+            (_, h) => `${date}T${String(h).padStart(2, '0')}:00`
+          )
+        ),
+        temperature_2m: Array.from({ length: 48 }, () => 50),
+      }
+
+      const renderScrollable = (onSelectDate: (date: string) => void) => {
+        renderWithProviders(
+          <WeatherCard
+            forecastData={forecast()}
+            hourlyData={twoDays}
+            onClose={onClose}
+            onSelectDate={onSelectDate}
+          />
+        )
+        const region = screen.getByRole('region', {
+          name: /hourly temperature/i,
+        })
+        Object.defineProperty(region, 'clientWidth', { value: 400 })
+        return region
+      }
+
+      it('selects the previous day when scrolled back into it', () => {
+        const onSelectDate = vi.fn()
+        const region = renderScrollable(onSelectDate)
+        region.scrollLeft = 0
+        fireEvent.scroll(region)
+        expect(onSelectDate).toHaveBeenCalledWith('2026-03-09')
+      })
+
+      it('does not change the day while the center stays within it', () => {
+        const onSelectDate = vi.fn()
+        const region = renderScrollable(onSelectDate)
+        region.scrollLeft = 44 * 36
+        fireEvent.scroll(region)
+        expect(onSelectDate).not.toHaveBeenCalled()
+      })
     })
   })
 })

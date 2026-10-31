@@ -228,6 +228,10 @@ const Weather: React.FC = () => {
                 forecastData={selectedForecast}
                 hourlyData={weatherData.hourly}
                 onClose={() => setSelectedForecastIndex(null)}
+                onSelectDate={(date) => {
+                  const index = dailyForecasts.findIndex((day) => day.time.slice(0, 10) === date);
+                  if (index >= 0) setSelectedForecastIndex(index);
+                }}
                 dayPicker={
                   <Calendar
                     layout="strip"

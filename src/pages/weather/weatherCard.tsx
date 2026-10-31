@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import moment from 'moment';
 import styles from './weatherCard.module.css';
@@ -10,8 +10,7 @@ import {
     XAxis,
     YAxis,
     Tooltip,
-    ResponsiveContainer,
-    Brush
+    ReferenceLine
 } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 import { DailyForecast, HourlyForecast } from './parseForecast';
@@ -22,7 +21,13 @@ interface WeatherCardProps {
     onClose: () => void;
     // Day picker rendered at the top of the card.
     dayPicker?: React.ReactNode;
+    // Called with a YYYY-MM-DD date when scrolling the hourly chart moves into another day.
+    onSelectDate?: (date: string) => void;
 }
+
+const HOUR_WIDTH = 44;
+const Y_AXIS_WIDTH = 40;
+const CHART_HEIGHT = 260;
 
 const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
     const theme = useTheme();
@@ -36,7 +41,7 @@ const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
                 }}
             >
                 <Typography variant="caption" sx={{ color: theme.palette.text.primary }}>
-                    {`Time: ${label}`}
+                    {`Time: ${moment(label).format('ddd h:mm A')}`}
                 </Typography>
                 <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
                     {`Temperature: ${payload[0].value}°F`}
@@ -69,7 +74,11 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     hourlyData,
     onClose,
     dayPicker,
+    onSelectDate,
 }) => {
+    const scrollRef = useRef<HTMLDivElement>(null);
+    // Date last chosen by scrolling the chart; the chart must not re-center on it.
+    const scrollSelectedDate = useRef<string | null>(null);
     const theme = useTheme();
     const dayName = moment(time).format('dddd');
     const fullDate = moment(time).format('LL');
@@ -78,16 +87,45 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const today = moment().format('YYYY-MM-DD');
     const isTodaySelected = selectedDate === today;
 
-    // Only valid hourly points for the selected date reach the chart.
-    const hourlyForSelected = hourlyData.time.flatMap((hourTime, index) =>
-        hourTime.slice(0, 10) === selectedDate
-            ? [{
-                timestamp: hourTime,
-                time: moment(hourTime).format('h:mm A'),
-                temperature: hourlyData.temperature_2m[index],
-            }]
-            : []
-    );
+    // Every loaded hourly point, so the chart can scroll across days.
+    const allHourly = hourlyData.time.map((hourTime, index) => ({
+        timestamp: hourTime,
+        time: moment(hourTime).format('h:mm A'),
+        temperature: hourlyData.temperature_2m[index],
+    }));
+    const hourlyForSelected = allHourly.filter((point) => point.timestamp.slice(0, 10) === selectedDate);
+    const chartWidth = Y_AXIS_WIDTH + allHourly.length * HOUR_WIDTH;
+    const step = allHourly.length > 1 ? (chartWidth - Y_AXIS_WIDTH - 10) / (allHourly.length - 1) : HOUR_WIDTH;
+
+    // Date of the hourly point in the middle of the visible chart area.
+    const dateAtCenter = (el: HTMLDivElement) => {
+        const x = el.scrollLeft + el.clientWidth / 2 - Y_AXIS_WIDTH;
+        const index = Math.min(allHourly.length - 1, Math.max(0, Math.round(x / step)));
+        return allHourly[index]?.timestamp.slice(0, 10);
+    };
+
+    // Centers the selected day in the chart when it was chosen elsewhere (or the data shifted).
+    const firstHour = allHourly[0]?.timestamp;
+    useLayoutEffect(() => {
+        const el = scrollRef.current;
+        const bySelection = scrollSelectedDate.current === selectedDate;
+        scrollSelectedDate.current = null;
+        if (bySelection) return;
+        if (!el || el.clientWidth === 0 || dateAtCenter(el) === selectedDate) return;
+        const noon = allHourly.findIndex((point) => point.timestamp.startsWith(`${selectedDate}T12`));
+        const target = noon >= 0 ? noon : allHourly.findIndex((point) => point.timestamp.startsWith(selectedDate));
+        if (target >= 0) el.scrollLeft = Y_AXIS_WIDTH + target * step - el.clientWidth / 2;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedDate, firstHour, hourlyForSelected.length > 0]);
+
+    // Selects the day under the center of the chart as the user scrolls.
+    const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+        const date = dateAtCenter(event.currentTarget);
+        if (date && date !== selectedDate) {
+            scrollSelectedDate.current = date;
+            onSelectDate?.(date);
+        }
+    };
 
     // Current conditions exist only for today and only when an hourly reading covers the current hour.
     const now = moment();
@@ -149,23 +187,25 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
             {hourlyForSelected.length > 0 && (
                 <Box className={styles.hourlySection}>
                     <Typography className={styles.chartTitle}>Hourly temperature</Typography>
-                    <ResponsiveContainer width="100%" height={260}>
-                        <LineChart data={hourlyForSelected}>
+                    <Box
+                        ref={scrollRef}
+                        role="region"
+                        aria-label="Hourly temperature, scroll to change day"
+                        tabIndex={0}
+                        onScroll={handleScroll}
+                        sx={{ overflowX: 'auto' }}
+                    >
+                        <LineChart width={chartWidth} height={CHART_HEIGHT} data={allHourly} margin={{ left: 0, right: 10 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-                            <XAxis dataKey="time" tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
-                            <YAxis domain={[0, 120]} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
+                            <XAxis dataKey="timestamp" interval={2} tickFormatter={(value) => moment(value).format('h A')} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
+                            <YAxis width={Y_AXIS_WIDTH} domain={[0, 120]} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
                             <Tooltip content={<CustomTooltip />} />
+                            {allHourly.filter((point) => point.timestamp.slice(11, 13) === '00').map((point) => (
+                                <ReferenceLine key={point.timestamp} x={point.timestamp} stroke={theme.palette.divider} label={{ value: moment(point.timestamp).format('ddd M/D'), position: 'insideTopLeft', fontSize: 11, fill: theme.palette.text.secondary }} />
+                            ))}
                             <Line type="monotone" dataKey="temperature" stroke="#187a72" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
-                            <Brush 
-                                dataKey="time" 
-                                height={30} 
-                                stroke={theme.palette.primary.main}
-                                tickFormatter={(value) => moment(value, 'h:mm A').format('hh:mm A')}
-                                travellerWidth={20}
-                                fill={theme.palette.background.paper}
-                            />
                         </LineChart>
-                    </ResponsiveContainer>
+                    </Box>
                 </Box>
             )}
         </Box>
