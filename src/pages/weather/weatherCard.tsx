@@ -14,27 +14,11 @@ import {
     Brush
 } from 'recharts';
 import { useTheme } from '@mui/material/styles';
-
-interface RawDailyForecast {
-    index: number;
-    time: string;
-    temperature_2m_max: number;
-    temperature_2m_min: number;
-    weathercode: number;
-    precipitation_probability_max: number;
-    windspeed_10m_max: number;
-    sunrise: string;
-    sunset: string;
-}
-
-interface HourlyData {
-    time: string[];
-    temperature_2m: number[];
-}
+import { DailyForecast, HourlyForecast } from './parseForecast';
 
 interface WeatherCardProps {
-    forecastData: RawDailyForecast;
-    hourlyData: HourlyData;
+    forecastData: DailyForecast;
+    hourlyData: HourlyForecast;
 }
 
 const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
@@ -60,6 +44,14 @@ const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
     return null;
 };
 
+const Unavailable: React.FC = () => <span role="img" aria-label="Unavailable">—</span>;
+
+const degrees = (value: number | null) =>
+    value === null ? <Unavailable /> : <>{Math.round(value)}°</>;
+
+const clockTime = (value: string | null) =>
+    value === null ? <Unavailable /> : <>{moment(value).format('h:mm')} <small>{moment(value).format('A')}</small></>;
+
 const WeatherCard: React.FC<WeatherCardProps> = ({
     forecastData: {
         time,
@@ -76,26 +68,28 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const theme = useTheme();
     const dayName = moment(time).format('dddd');
     const fullDate = moment(time).format('LL');
-    const iconClass = weatherCodeIcons[weathercode] || 'wi-na';
+    const iconClass = (weathercode !== null && weatherCodeIcons[weathercode]) || 'wi-na';
     const selectedDate = moment(time).format('YYYY-MM-DD');
     const today = moment().format('YYYY-MM-DD');
     const isTodaySelected = selectedDate === today;
 
-    // Filter hourly data for the selected date.
-    const hourlyForSelected = hourlyData.time.reduce((acc: any[], hourTime: string, index: number) => {
-        if (moment(hourTime).format('YYYY-MM-DD') === selectedDate) {
-            acc.push({
+    // Only valid hourly points for the selected date reach the chart.
+    const hourlyForSelected = hourlyData.time.flatMap((hourTime, index) =>
+        hourTime.slice(0, 10) === selectedDate
+            ? [{
+                timestamp: hourTime,
                 time: moment(hourTime).format('h:mm A'),
                 temperature: hourlyData.temperature_2m[index],
-            });
-        }
-        return acc;
-    }, []);
+            }]
+            : []
+    );
 
-    // If today is selected, try to find current hourly temperature.
-    const nowFormatted = moment().format('h:mm A');
-    const currentData = hourlyForSelected.find((data: { time: string; temperature: number }) => data.time === nowFormatted);
-    const currentTemperature = currentData ? currentData.temperature : temperature_2m_max;
+    // Current conditions exist only for today and only when an hourly reading covers the current hour.
+    const now = moment();
+    const currentPoint = isTodaySelected
+        ? hourlyForSelected.find((point) => moment(point.timestamp).isSame(now, 'hour'))
+        : undefined;
+    const headlineTemperature = currentPoint ? currentPoint.temperature : temperature_2m_max;
 
     return (
         <Box className={`${styles.weatherCard} ${theme.palette.mode === 'dark' ? styles.dark : ''}`}>
@@ -108,30 +102,37 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                     </Box>
                 </Box>
                 <Box className={styles.temperature}>
-                    <Typography className={styles.temperatureValue}>
-                        {isTodaySelected ? Math.round(currentTemperature) : Math.round(temperature_2m_max)}°
-                    </Typography>
+                    <Box>
+                        <Typography className={styles.metricLabel}>{currentPoint ? 'NOW' : 'DAILY HIGH'}</Typography>
+                        <Typography className={styles.temperatureValue}>
+                            {degrees(headlineTemperature)}
+                        </Typography>
+                    </Box>
                     <Typography className={styles.temperatureRange}>
-                        H {Math.round(temperature_2m_max)}° <span>/</span> L {Math.round(temperature_2m_min)}°
+                        H {degrees(temperature_2m_max)} <span>/</span> L {degrees(temperature_2m_min)}
                     </Typography>
                 </Box>
             </Box>
             <Box className={styles.metrics}>
                 <Box className={styles.metric}>
                     <Typography className={styles.metricLabel}>WIND</Typography>
-                    <Typography className={styles.metricValue}>{Math.round(windspeed_10m_max)} <small>km/h</small></Typography>
+                    <Typography className={styles.metricValue}>
+                        {windspeed_10m_max === null ? <Unavailable /> : <>{Math.round(windspeed_10m_max)} <small>km/h</small></>}
+                    </Typography>
                 </Box>
                 <Box className={styles.metric}>
                     <Typography className={styles.metricLabel}>RAIN CHANCE</Typography>
-                    <Typography className={styles.metricValue}>{precipitation_probability_max || 0}<small>%</small></Typography>
+                    <Typography className={styles.metricValue}>
+                        {precipitation_probability_max === null ? <Unavailable /> : <>{precipitation_probability_max}<small>%</small></>}
+                    </Typography>
                 </Box>
                 <Box className={styles.metric}>
                     <Typography className={styles.metricLabel}>SUNRISE</Typography>
-                    <Typography className={styles.metricValue}>{moment(sunrise).format('h:mm')} <small>{moment(sunrise).format('A')}</small></Typography>
+                    <Typography className={styles.metricValue}>{clockTime(sunrise)}</Typography>
                 </Box>
                 <Box className={styles.metric}>
                     <Typography className={styles.metricLabel}>SUNSET</Typography>
-                    <Typography className={styles.metricValue}>{moment(sunset).format('h:mm')} <small>{moment(sunset).format('A')}</small></Typography>
+                    <Typography className={styles.metricValue}>{clockTime(sunset)}</Typography>
                 </Box>
             </Box>
             {hourlyForSelected.length > 0 && (

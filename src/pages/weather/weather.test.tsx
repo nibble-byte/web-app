@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Weather from './weather'
 import { renderWithProviders } from '../../test/renderWithProviders'
@@ -174,6 +174,8 @@ describe('Weather', () => {
   describe('forecast data validation', () => {
     const INCOMPLETE =
       'The weather service returned incomplete forecast data. Please try again.'
+    const PARTIAL =
+      'Some weather information is unavailable. Showing the available forecast.'
 
     const searchWith = async (payload: () => unknown) => {
       const user = userEvent.setup()
@@ -231,32 +233,212 @@ describe('Weather', () => {
       'windspeed_10m_max',
       'sunrise',
       'sunset',
-    ])(
-      'shows an incomplete-data message when daily.%s is missing',
-      async (key) => {
-        await searchWith(() => withDaily((daily) => delete daily[key]))
-        await expectIncompleteMessage()
-      }
-    )
-
-    it('shows an incomplete-data message when a daily array is shorter than the dates', async () => {
-      await searchWith(() => withDaily((daily) => (daily.weathercode = [1])))
-      await expectIncompleteMessage()
+      'precipitation_probability_max',
+    ])('still shows the forecast when daily.%s is missing', async (key) => {
+      await searchWith(() => withDaily((daily) => delete daily[key]))
+      expect(await screen.findByText('Daily forecast')).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
-    it('shows an incomplete-data message when a daily value is null', async () => {
-      await searchWith(() =>
-        withDaily((daily) => (daily.temperature_2m_max = [60, null]))
+    it('shows days with a short array or null value using placeholders', async () => {
+      const user = await searchWith(() =>
+        withDaily((daily) => {
+          daily.weathercode = [1]
+          daily.temperature_2m_max = [null, 61]
+          daily.precipitation_probability_max = [null, null]
+        })
       )
-      await expectIncompleteMessage()
+      await screen.findByText('Daily forecast')
+
+      const first = screen.getByRole('button', {
+        name: /March 10, high temperature unavailable, chance of rain unavailable/,
+      })
+      await user.click(first)
+
+      expect(screen.getByText('DAILY CONDITIONS')).toBeInTheDocument()
+      expect(first).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getAllByLabelText('Unavailable').length).toBeGreaterThan(0)
+      expect(document.body).not.toHaveTextContent(/NaN|undefined|Invalid date/)
+      expect(screen.queryByText('0%')).not.toBeInTheDocument()
     })
 
-    it('still shows the daily forecast when hourly data is missing', async () => {
-      await searchWith(() => ({
+    it('shows the forecast without a notice when everything is available', async () => {
+      await searchWith(() => buildOpenMeteoResponse(2, 0))
+      await screen.findByText('Daily forecast')
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it('still shows the daily forecast and hides the chart when hourly data is missing', async () => {
+      const user = await searchWith(() => ({
         daily: buildOpenMeteoResponse(2, 0).daily,
         hourly: null,
       }))
       expect(await screen.findByText('Daily forecast')).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent(PARTIAL)
+
+      await user.click(screen.getByRole('button', { name: /March 10/ }))
+      expect(screen.getByText('DAILY CONDITIONS')).toBeInTheDocument()
+      expect(screen.queryByText('Hourly temperature')).not.toBeInTheDocument()
+    })
+
+    it('shows the hourly chart when valid hourly data exists for the selected day', async () => {
+      const user = await searchWith(() => buildOpenMeteoResponse(2, 0))
+      await screen.findByText('Daily forecast')
+      await user.click(screen.getByRole('button', { name: /March 10/ }))
+      expect(screen.getByText('Hourly temperature')).toBeInTheDocument()
+    })
+
+    it('shows the daily forecast with a notice when only hourly data is invalid', async () => {
+      await searchWith(() => ({
+        daily: buildOpenMeteoResponse(2, 0).daily,
+        hourly: { time: ['bad'], temperature_2m: [NaN] },
+      }))
+      expect(await screen.findByText('Daily forecast')).toBeInTheDocument()
+    })
+
+    it('shows a notice when some forecast days are unusable', async () => {
+      await searchWith(() =>
+        withDaily((daily) => {
+          daily.time = ['2026-03-10', 'garbage']
+        })
+      )
+      expect(await screen.findByText('Daily forecast')).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent(PARTIAL)
+    })
+
+    describe('partial API failures', () => {
+      const searchWithRoutes = async (
+        archive: () => Response,
+        forecast: () => Response
+      ) => {
+        const user = userEvent.setup()
+        mockFetch([
+          {
+            match: 'zippopotam.us',
+            handler: () => jsonResponse(zippopotamResponse()),
+          },
+          { match: 'archive-api.open-meteo.com', handler: archive },
+          { match: 'api.open-meteo.com/v1/forecast', handler: forecast },
+        ])
+        renderWeather()
+        await user.type(screen.getByLabelText('Zip Code'), '98101')
+        await user.click(screen.getByRole('button', { name: 'Search' }))
+        return user
+      }
+      const serverError = () =>
+        new Response('', { status: 500, statusText: 'Server Error' })
+
+      it('shows the forecast when the historical request fails', async () => {
+        await searchWithRoutes(serverError, () =>
+          jsonResponse(buildOpenMeteoResponse(2, 2))
+        )
+        expect(await screen.findByText('Daily forecast')).toBeInTheDocument()
+        expect(screen.getByRole('status')).toHaveTextContent(PARTIAL)
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /March 12/ })).toBeEnabled()
+        expect(
+          screen.getByRole('button', { name: /March 10, no forecast/ })
+        ).toBeDisabled()
+      })
+
+      it('shows the history when the forecast request fails', async () => {
+        await searchWithRoutes(
+          () => jsonResponse(buildOpenMeteoResponse(2, 0)),
+          serverError
+        )
+        expect(await screen.findByText('Daily forecast')).toBeInTheDocument()
+        expect(screen.getByRole('status')).toHaveTextContent(PARTIAL)
+      })
+
+      it('shows the forecast when the other response is invalid JSON', async () => {
+        await searchWithRoutes(
+          () => new Response('<html>', { status: 200 }),
+          () => jsonResponse(buildOpenMeteoResponse(2, 2))
+        )
+        expect(await screen.findByText('Daily forecast')).toBeInTheDocument()
+        expect(screen.getByRole('status')).toHaveTextContent(PARTIAL)
+      })
+
+      it('shows an error, not a notice, when both requests fail', async () => {
+        await searchWithRoutes(serverError, serverError)
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          'Error fetching historical weather data: 500 Server Error'
+        )
+        expect(screen.queryByRole('status')).not.toBeInTheDocument()
+        expect(screen.queryByText('Daily forecast')).not.toBeInTheDocument()
+      })
+    })
+
+    it('does not present the previous forecast while a new location loads or after it fails', async () => {
+      const user = userEvent.setup()
+      let failing = false
+      mockFetch([
+        {
+          match: 'zippopotam.us',
+          handler: () => jsonResponse(zippopotamResponse()),
+        },
+        {
+          match: 'open-meteo.com',
+          handler: () =>
+            failing
+              ? new Response('', { status: 500, statusText: 'Server Error' })
+              : jsonResponse(buildOpenMeteoResponse(2, 0)),
+        },
+      ])
+      renderWeather()
+      await user.type(screen.getByLabelText('Zip Code'), '98101')
+      await user.click(screen.getByRole('button', { name: 'Search' }))
+      expect(await screen.findByText('Daily forecast')).toBeInTheDocument()
+
+      failing = true
+      await user.click(screen.getByRole('button', { name: 'Search' }))
+
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      expect(screen.queryByText('Daily forecast')).not.toBeInTheDocument()
+    })
+
+    it('ignores a slower earlier response that finishes after a newer request', async () => {
+      const user = userEvent.setup()
+      stubGeolocation((success) =>
+        success({
+          coords: { latitude: 10, longitude: 20 },
+        } as GeolocationPosition)
+      )
+      let release: () => void = () => {}
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      mockFetch([
+        {
+          match: 'zippopotam.us',
+          handler: () => jsonResponse(zippopotamResponse('1', '2')),
+        },
+        {
+          match: 'open-meteo.com',
+          handler: async (url) => {
+            if (url.includes('latitude=10')) {
+              await gate
+              return jsonResponse(buildOpenMeteoResponse(2, 0))
+            }
+            return jsonResponse(buildOpenMeteoResponse(2, 4))
+          },
+        },
+      ])
+      renderWeather()
+
+      // The slow location request starts first, then a zip search supersedes it.
+      await user.click(screen.getByRole('button', { name: 'Use my location' }))
+      await user.type(screen.getByLabelText('Zip Code'), '98101')
+      fireEvent.submit(screen.getByLabelText('Zip Code').closest('form')!)
+      expect(await screen.findByText('Daily forecast')).toBeInTheDocument()
+
+      release()
+      await act(async () => {
+        await gate
+      })
+
+      expect(screen.getByRole('button', { name: /March 14/ })).toBeEnabled()
+      expect(screen.getByRole('button', { name: /March 10/ })).toBeDisabled()
     })
 
     it('does not mistake a network failure for incomplete data', async () => {

@@ -1,9 +1,10 @@
 import { Box, Button } from "@mui/material";
 import moment, { Moment } from "moment";
 import styles from './calendar.module.css';
+import { DailyForecast } from './parseForecast';
 
 interface CalendarProps {
-  dailyForecasts: any[];
+  dailyForecasts: DailyForecast[];
   selectedForecastIndex: number | null;
   setSelectedForecastIndex: (index: number) => void;
 }
@@ -30,7 +31,7 @@ export const Calendar: React.FC<CalendarProps> = ({
   );
 
   // Create an array of available forecast dates (formatted as YYYY-MM-DD).
-  const availableDates = dailyForecasts.map((f: any) =>
+  const availableDates = dailyForecasts.map((f) =>
     moment(f.time).format("YYYY-MM-DD")
   );
 
@@ -75,17 +76,17 @@ export const Calendar: React.FC<CalendarProps> = ({
               const isToday = cellDate.isSame(moment(), "day");
               const isSelected =
                 selectedForecastIndex !== null &&
-                moment(dailyForecasts[selectedForecastIndex].time).isSame(cellDate, "day");
+                moment(dailyForecasts[selectedForecastIndex]?.time).isSame(cellDate, "day");
               const displayText = isToday ? "Today" : cellDate.date().toString();
 
-              // Find rain percentage for this day if available
-              const forecastIdx = dailyForecasts.findIndex((f: any) =>
+              const forecastIdx = dailyForecasts.findIndex((f) =>
                 moment(f.time).isSame(cellDate, "day")
               );
-              const rainPercent =
-                forecastIdx >= 0
-                  ? dailyForecasts[forecastIdx].precipitation_probability_max ?? 0
-                  : null;
+              const forecast = forecastIdx >= 0 ? dailyForecasts[forecastIdx] : null;
+              const high = forecast?.temperature_2m_max ?? null;
+              const rainPercent = forecast?.precipitation_probability_max ?? null;
+              const highLabel = high === null ? 'high temperature unavailable' : `high ${Math.round(high)} degrees`;
+              const rainLabel = rainPercent === null ? 'chance of rain unavailable' : `${rainPercent}% chance of rain`;
 
               return (
                 <Button
@@ -98,28 +99,28 @@ export const Calendar: React.FC<CalendarProps> = ({
                     }
                   }}
                   aria-pressed={isSelected}
-                  aria-label={`${cellDate.format('dddd, MMMM D')}${isAvailable ? `, high ${Math.round(dailyForecasts[forecastIdx].temperature_2m_max)} degrees, ${rainPercent}% chance of rain` : ', no forecast available'}`}
+                  aria-label={`${cellDate.format('dddd, MMMM D')}${forecast ? `, ${highLabel}, ${rainLabel}` : ', no forecast available'}`}
                   disabled={!isAvailable}
                 >
                   <Box className={styles.dateBox}>
                     <span style={{ fontWeight: isToday ? "bold" : "normal" }}>{displayText}</span>
                   </Box>
-                  {forecastIdx >= 0 && (
+                  {forecast && (
                     <Box
                       className={styles.tempBox}
                     >
                       <span style={{ fontSize: 8, display: "flex", alignItems: "center" }}>
                         <span role="img" aria-label="thermometer" style={{ fontSize: 14, marginRight: 3 }}>🌡️</span>
-                        {Math.round(dailyForecasts[forecastIdx].temperature_2m_max)}°F
+                        {high === null ? '—' : `${Math.round(high)}°F`}
                       </span>
                     </Box>
                   )}
-                  {rainPercent !== null && (
+                  {forecast && (
                     <Box
                       className={styles.rainBox}
                     >
                       <span role="img" aria-label="rain" style={{ fontSize: 13, marginRight: 2 }}>🌧️</span>
-                      {rainPercent}%
+                      {rainPercent === null ? '—' : `${rainPercent}%`}
                     </Box>
                   )}
                 </Button>

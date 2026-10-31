@@ -1,15 +1,16 @@
 export interface DailyForecast {
   index: number
   time: string
-  temperature_2m_max: number
-  temperature_2m_min: number
-  weathercode: number
-  precipitation_probability_max: number
-  windspeed_10m_max: number
-  sunrise: string
-  sunset: string
+  temperature_2m_max: number | null
+  temperature_2m_min: number | null
+  weathercode: number | null
+  precipitation_probability_max: number | null
+  windspeed_10m_max: number | null
+  sunrise: string | null
+  sunset: string | null
 }
 
+// Parallel arrays holding only valid points, so `time[i]` always matches `temperature_2m[i]`.
 export interface HourlyForecast {
   time: string[]
   temperature_2m: number[]
@@ -18,6 +19,8 @@ export interface HourlyForecast {
 export interface ParsedForecast {
   dailyForecasts: DailyForecast[]
   hourly: HourlyForecast
+  // Daily records dropped for having an invalid date or no usable measurement.
+  omittedRecords: number
 }
 
 export const INCOMPLETE_FORECAST_MESSAGE =
@@ -30,89 +33,123 @@ export class IncompleteForecastError extends Error {
   }
 }
 
-type Column = unknown[]
+const TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/
 
+// Type guard: true for plain objects (not null, not arrays), so properties can be read safely from unknown data.
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const column = (
-  source: Record<string, unknown>,
-  key: string,
-  length: number
-): Column => {
+// Checks that a value is a local ISO date or timestamp with real calendar and clock values.
+// Accepts local ISO dates or timestamps ("2026-03-10", "2026-03-10T06:30") and rejects impossible values.
+export const isValidTimestamp = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false
+  const match = TIMESTAMP.exec(value)
+  if (!match) return false
+  const [year, month, day, hour = '0', minute = '0', second = '0'] =
+    match.slice(1)
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)))
+  return (
+    date.getUTCFullYear() === Number(year) &&
+    date.getUTCMonth() === Number(month) - 1 &&
+    date.getUTCDate() === Number(day) &&
+    Number(hour) < 24 &&
+    Number(minute) < 60 &&
+    Number(second) < 60
+  )
+}
+
+// Returns the value if it is a finite number, otherwise null (rejects strings, NaN and Infinity).
+const finiteOrNull = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null
+
+// Returns the value if it is a valid timestamp string, otherwise null.
+const timestampOrNull = (value: unknown): string | null =>
+  isValidTimestamp(value) ? value : null
+
+// Reads a column (array) from an API section, or an empty array when it is missing or not an array.
+const columnOf = (source: Record<string, unknown>, key: string): unknown[] => {
   const values = source[key]
-  if (!Array.isArray(values) || values.length < length) {
-    throw new IncompleteForecastError()
-  }
-  return values
+  return Array.isArray(values) ? values : []
 }
 
-const finite = (value: unknown): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new IncompleteForecastError()
-  }
-  return value
-}
+// Comparator that orders records chronologically by their ISO `time` string.
+const byTime = <T extends { time: string }>(a: T, b: T) =>
+  a.time < b.time ? -1 : a.time > b.time ? 1 : 0
 
-const text = (value: unknown): string => {
-  if (typeof value !== 'string' || value === '') {
-    throw new IncompleteForecastError()
-  }
-  return value
-}
+// Removes records whose time repeats the previous one in a sorted list, keeping the first.
+const withoutDuplicateTimes = <T extends { time: string }>(sorted: T[]): T[] =>
+  sorted.filter((item, i) => i === 0 || item.time !== sorted[i - 1].time)
 
-const parseHourly = (hourly: unknown): HourlyForecast => {
-  if (
-    isRecord(hourly) &&
-    Array.isArray(hourly.time) &&
-    Array.isArray(hourly.temperature_2m) &&
-    hourly.temperature_2m.length >= hourly.time.length
-  ) {
-    return {
-      time: hourly.time.map(String),
-      temperature_2m: hourly.temperature_2m as number[],
+// Builds daily records from the API's column-oriented data, validating each day and measurement
+// independently; returns the usable days (sorted, de-duplicated, indexed) and how many were dropped.
+const parseDaily = (
+  daily: unknown
+): { forecasts: DailyForecast[]; omitted: number } => {
+  if (!isRecord(daily) || !Array.isArray(daily.time)) {
+    return { forecasts: [], omitted: 0 }
+  }
+  const maxTemps = columnOf(daily, 'temperature_2m_max')
+  const minTemps = columnOf(daily, 'temperature_2m_min')
+  const codes = columnOf(daily, 'weathercode')
+  const rain = columnOf(daily, 'precipitation_probability_max')
+  const winds = columnOf(daily, 'windspeed_10m_max')
+  const sunrises = columnOf(daily, 'sunrise')
+  const sunsets = columnOf(daily, 'sunset')
+
+  const records: Omit<DailyForecast, 'index'>[] = []
+  daily.time.forEach((time, i) => {
+    if (!isValidTimestamp(time)) return
+    const measurements = {
+      temperature_2m_max: finiteOrNull(maxTemps[i]),
+      temperature_2m_min: finiteOrNull(minTemps[i]),
+      weathercode: finiteOrNull(codes[i]),
+      precipitation_probability_max: finiteOrNull(rain[i]),
+      windspeed_10m_max: finiteOrNull(winds[i]),
+      sunrise: timestampOrNull(sunrises[i]),
+      sunset: timestampOrNull(sunsets[i]),
     }
-  }
-  // Hourly data only feeds the optional detail chart, so its absence must not hide the daily forecast.
-  return { time: [], temperature_2m: [] }
+    if (Object.values(measurements).some((value) => value !== null)) {
+      records.push({ time, ...measurements })
+    }
+  })
+
+  const forecasts = withoutDuplicateTimes(records.sort(byTime)).map(
+    (record, index) => ({ index, ...record })
+  )
+  return { forecasts, omitted: daily.time.length - forecasts.length }
 }
 
-// Validates the merged Open-Meteo payload at the boundary; throws IncompleteForecastError if daily data is unusable.
+// Builds the hourly series, keeping only points with a valid timestamp and finite temperature,
+// sorted and de-duplicated so each time stays aligned with its temperature.
+const parseHourly = (hourly: unknown): HourlyForecast => {
+  const empty = { time: [], temperature_2m: [] }
+  if (!isRecord(hourly) || !Array.isArray(hourly.time)) return empty
+  const temperatures = columnOf(hourly, 'temperature_2m')
+
+  const points: { time: string; temperature: number }[] = []
+  hourly.time.forEach((time, i) => {
+    const temperature = finiteOrNull(temperatures[i])
+    if (isValidTimestamp(time) && temperature !== null) {
+      points.push({ time, temperature })
+    }
+  })
+  const sorted = withoutDuplicateTimes(points.sort(byTime))
+  return {
+    time: sorted.map((point) => point.time),
+    temperature_2m: sorted.map((point) => point.temperature),
+  }
+}
+
+// Validates the merged Open-Meteo payload record by record; throws IncompleteForecastError only when no usable day remains.
 export const parseForecast = (data: unknown): ParsedForecast => {
-  if (!isRecord(data) || !isRecord(data.daily)) {
+  const source = isRecord(data) ? data : {}
+  const { forecasts, omitted } = parseDaily(source.daily)
+  if (forecasts.length === 0) {
     throw new IncompleteForecastError()
   }
-  const daily = data.daily
-  if (
-    !Array.isArray(daily.time) ||
-    daily.time.length === 0
-  ) {
-    throw new IncompleteForecastError()
+  return {
+    dailyForecasts: forecasts,
+    hourly: parseHourly(source.hourly),
+    omittedRecords: omitted,
   }
-
-  const count = daily.time.length
-  const maxTemps = column(daily, 'temperature_2m_max', count)
-  const minTemps = column(daily, 'temperature_2m_min', count)
-  const codes = column(daily, 'weathercode', count)
-  const winds = column(daily, 'windspeed_10m_max', count)
-  const sunrises = column(daily, 'sunrise', count)
-  const sunsets = column(daily, 'sunset', count)
-  const precipitation = Array.isArray(daily.precipitation_probability_max)
-    ? daily.precipitation_probability_max
-    : []
-
-  const dailyForecasts = daily.time.map((time, index) => ({
-    index,
-    time: text(time),
-    temperature_2m_max: finite(maxTemps[index]),
-    temperature_2m_min: finite(minTemps[index]),
-    weathercode: finite(codes[index]),
-    precipitation_probability_max:
-      typeof precipitation[index] === 'number' ? precipitation[index] : 0,
-    windspeed_10m_max: finite(winds[index]),
-    sunrise: text(sunrises[index]),
-    sunset: text(sunsets[index]),
-  }))
-
-  return { dailyForecasts, hourly: parseHourly(data.hourly) }
 }

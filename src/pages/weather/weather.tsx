@@ -1,5 +1,5 @@
 // Weather.tsx
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Box, Typography, Button, useTheme, TextField } from '@mui/material';
 import WeatherCard from './weatherCard';
 import getOpenMeteoWeather from './getOpenMeteoWeather';
@@ -55,10 +55,13 @@ const getCoordinatesFromZip = async (zip: string): Promise<Coordinates> => {
     throw new Error('Invalid zip code or failed to fetch location.');
   }
   const data: ZippopotamResponse = await response.json();
-  return {
-    latitude: Number(data.places[0].latitude),
-    longitude: Number(data.places[0].longitude),
-  };
+  const place = data.places?.[0];
+  const latitude = Number(place?.latitude);
+  const longitude = Number(place?.longitude);
+  if (!place || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    throw new Error('Invalid zip code or failed to fetch location.');
+  }
+  return { latitude, longitude };
 };
 
 const Weather: React.FC = () => {
@@ -69,48 +72,54 @@ const Weather: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedForecastIndex, setSelectedForecastIndex] = useState<number | null>(null);
   const [zipCode, setZipCode] = useState<string>('');
+  const [partialNotice, setPartialNotice] = useState(false);
 
-  const fetchWeatherData = async (coords?: Coordinates) => {
+  // Only the most recent request may update the page, so slower earlier requests cannot overwrite it.
+  const latestRequest = useRef(0);
+
+  const startRequest = () => {
+    latestRequest.current += 1;
     setLoading(true);
     setError(null);
+    setPartialNotice(false);
+    setWeatherData(null);
+    setSelectedForecastIndex(null);
+    return latestRequest.current;
+  };
+
+  const loadForecast = async (location: Coordinates, requestId: number) => {
+    const weather = await getOpenMeteoWeather(location);
+    const forecast = parseForecast(weather);
+    if (requestId !== latestRequest.current) return;
+    setWeatherData(forecast);
+    setPartialNotice(weather.issues.length > 0 || forecast.omittedRecords > 0);
+  };
+
+  const runRequest = async (resolveLocation: () => Promise<Coordinates>) => {
+    const requestId = startRequest();
     try {
-      let location = coords || userLocation;
-      if (!location) {
-        location = await handleLocation();
-        setUserLocation(location);
-      }
-      if (location) {
-        const weather = await getOpenMeteoWeather({
-          latitude: location.latitude,
-          longitude: location.longitude,
-        });
-        setWeatherData(parseForecast(weather));
-        setSelectedForecastIndex(null);
-      }
+      const location = await resolveLocation();
+      if (requestId !== latestRequest.current) return;
+      setUserLocation(location);
+      await loadForecast(location, requestId);
     } catch (err: any) {
-      setError(err.message);
+      if (requestId === latestRequest.current) setError(err.message);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
   };
 
+  const fetchWeatherData = () => runRequest(async () => userLocation ?? handleLocation());
+
   // Handle zip code submit
-  const handleZipSubmit = async (e: React.FormEvent) => {
+  const handleZipSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const coords = await getCoordinatesFromZip(zipCode);
-      setUserLocation(coords);
-      await fetchWeatherData(coords);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    return runRequest(() => getCoordinatesFromZip(zipCode));
   };
 
   const dailyForecasts = weatherData?.dailyForecasts ?? [];
+  const selectedForecast =
+    selectedForecastIndex === null ? undefined : dailyForecasts[selectedForecastIndex];
 
   return (
     <Box className={`${styles.weatherPage} ${theme.palette.mode === 'dark' ? styles.dark : ''}`}>
@@ -141,7 +150,7 @@ const Weather: React.FC = () => {
         </Button>
         <Button
           variant="contained"
-          onClick={() => fetchWeatherData()}
+          onClick={fetchWeatherData}
           className={styles.locationButton}
           disabled={loading}
         >
@@ -152,6 +161,11 @@ const Weather: React.FC = () => {
       </Box>
       {loading && <Typography className={styles.status} aria-live="polite">Finding your forecast...</Typography>}
       {error && <Typography className={`${styles.status} ${styles.error}`} role="alert">{error}</Typography>}
+      {partialNotice && dailyForecasts.length > 0 && (
+        <Typography className={styles.status} role="status">
+          Some weather information is unavailable. Showing the available forecast.
+        </Typography>
+      )}
 
       {dailyForecasts.length === 0 && !loading && !error && (
         <Box className={styles.emptyState}>
@@ -166,10 +180,10 @@ const Weather: React.FC = () => {
       {dailyForecasts.length > 0 && (
         <Box className={styles.forecastContent}>
           {/* Display detailed forecast for the selected date (with hourly graph) */}
-          {selectedForecastIndex !== null && weatherData && (
+          {selectedForecast && weatherData && (
             <Box className={styles.detailSection}>
               <WeatherCard 
-                forecastData={dailyForecasts[selectedForecastIndex]} 
+                forecastData={selectedForecast} 
                 hourlyData={weatherData.hourly} 
               />
             </Box>

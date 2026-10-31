@@ -1,6 +1,8 @@
+import { IncompleteForecastError } from './parseForecast'
+
 interface LocationKey {
-  latitude: number;
-  longitude: number;
+  latitude: number
+  longitude: number
 }
 
 /**
@@ -23,13 +25,12 @@ const getNormalizedDate = (
   seconds: number = 0,
   ms: number = 0
 ): Date => {
-  const result = new Date(base);
-  result.setUTCDate(result.getDate() + offset);
-  result.setUTCHours(hours, minutes, seconds, ms);
+  const result = new Date(base)
+  result.setUTCDate(result.getDate() + offset)
+  result.setUTCHours(hours, minutes, seconds, ms)
 
-  return result;
-};
-
+  return result
+}
 
 const dailyParams = [
   'temperature_2m_max',
@@ -41,7 +42,7 @@ const dailyParams = [
   'sunset',
   'shortwave_radiation_sum',
   'precipitation_probability_max',
-].join(',');
+].join(',')
 
 const hourlyParams = [
   'temperature_2m',
@@ -56,23 +57,178 @@ const hourlyParams = [
   'shortwave_radiation',
   'visibility',
   'windgusts_10m',
-].join(',');
+].join(',')
+
+export type WeatherSource = 'historical' | 'forecast'
+
+export interface WeatherIssue {
+  source: WeatherSource
+  kind: 'request-failed' | 'missing-daily' | 'missing-hourly'
+  message: string
+}
+
+// Column-oriented Open-Meteo section; every array is aligned with `time`.
+export type WeatherTable = Record<string, unknown[]>
+
+export interface MergedWeather {
+  daily: WeatherTable
+  hourly: WeatherTable
+  issues: WeatherIssue[]
+}
+
+// Thrown when no source could be fetched and nothing usable is available.
+export class WeatherRequestError extends Error {
+  readonly issues: WeatherIssue[]
+
+  constructor(issues: WeatherIssue[]) {
+    super([...new Set(issues.map((issue) => issue.message))].join('; '))
+    this.name = 'WeatherRequestError'
+    this.issues = issues
+  }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const fetchSource = async (
+  source: WeatherSource,
+  url: string
+): Promise<unknown> => {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(
+      `Error fetching ${source} weather data: ${response.status} ${response.statusText}`
+    )
+  }
+  try {
+    return await response.json()
+  } catch {
+    throw new Error(`Received invalid ${source} weather data.`)
+  }
+}
+
+const readTable = (
+  payload: unknown,
+  section: 'daily' | 'hourly'
+): WeatherTable | null => {
+  if (!isRecord(payload)) return null
+  const table = payload[section]
+  if (
+    !isRecord(table) ||
+    !Array.isArray(table.time) ||
+    table.time.length === 0
+  ) {
+    return null
+  }
+  return Object.fromEntries(
+    Object.entries(table).filter(([, values]) => Array.isArray(values))
+  ) as WeatherTable
+}
+
+type Row = Record<string, unknown>
+
+// Groups values by their timestamp string; null, undefined and ragged entries are simply absent.
+const toRows = (table: WeatherTable | null): Map<string, Row> => {
+  const rows = new Map<string, Row>()
+  if (!table) return rows
+  table.time.forEach((time, index) => {
+    if (typeof time !== 'string' || time === '') return
+    const row = rows.get(time) ?? {}
+    for (const [field, values] of Object.entries(table)) {
+      const value = values[index]
+      if (field !== 'time' && value != null && row[field] == null) {
+        row[field] = value
+      }
+    }
+    rows.set(time, row)
+  })
+  return rows
+}
+
+// Date (YYYY-MM-DD) at the requested location, from the API's own UTC offset when it provides one.
+const locationToday = (forecast: unknown): string => {
+  const offset = isRecord(forecast) ? forecast.utc_offset_seconds : undefined
+  if (typeof offset === 'number' && Number.isFinite(offset)) {
+    return new Date(Date.now() + offset * 1000).toISOString().slice(0, 10)
+  }
+  const now = new Date()
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+// Merges by timestamp. Timestamps are location-local strings, so they are compared as text and never converted through Date.
+export const mergeTables = (
+  historical: WeatherTable | null,
+  forecast: WeatherTable | null,
+  today: string
+): WeatherTable => {
+  const historicalRows = toRows(historical)
+  const forecastRows = toRows(forecast)
+  const times = [
+    ...new Set([...historicalRows.keys(), ...forecastRows.keys()]),
+  ].sort()
+  const fields = [
+    ...new Set(
+      [historical, forecast].flatMap((table) =>
+        table ? Object.keys(table) : []
+      )
+    ),
+  ].filter((field) => field !== 'time')
+
+  const merged: WeatherTable = { time: times }
+  for (const field of fields) {
+    merged[field] = times.map((time) => {
+      const preferred =
+        time.slice(0, 10) >= today
+          ? [forecastRows, historicalRows]
+          : [historicalRows, forecastRows]
+      for (const rows of preferred) {
+        const value = rows.get(time)?.[field]
+        if (value != null) return value
+      }
+      return null
+    })
+  }
+  return merged
+}
+
+const describeIssues = (
+  source: WeatherSource,
+  payload: unknown
+): WeatherIssue[] => {
+  const issues: WeatherIssue[] = []
+  if (!readTable(payload, 'daily')) {
+    issues.push({
+      source,
+      kind: 'missing-daily',
+      message: `The ${source} weather data has no daily values.`,
+    })
+  }
+  if (!readTable(payload, 'hourly')) {
+    issues.push({
+      source,
+      kind: 'missing-hourly',
+      message: `The ${source} weather data has no hourly values.`,
+    })
+  }
+  return issues
+}
 
 const getOpenMeteoWeather = async ({
   latitude,
   longitude,
-}: LocationKey) => {
+}: LocationKey): Promise<MergedWeather> => {
   // Helper: formats a Date object to 'YYYY-MM-DD'.
-  const formatDate = (date: Date) => date.toISOString().split('T')[0];
+  const formatDate = (date: Date) => date.toISOString().split('T')[0]
 
-  const today = new Date();
+  const today = new Date()
 
   // Historical: from 10 days before today to yesterday.
-  const pastStartDate = getNormalizedDate(today, -10, 0);                   // 10 days ago at 00:00
-  const pastEndDate = getNormalizedDate(today, -1, 0);          // Yesterday at 23:59:59.999
+  const pastStartDate = getNormalizedDate(today, -10, 0) // 10 days ago at 00:00
+  const pastEndDate = getNormalizedDate(today, -1, 0) // Yesterday at 23:59:59.999
   // Forecast: from today to 15 days after today.
-  const futureStartDate = getNormalizedDate(today, -1, 0);                     // Today at 00:00
-  const futureEndDate = getNormalizedDate(today, 15, 0);         // 15 days after today at 23:59:59.999
+  const futureStartDate = getNormalizedDate(today, -1, 0) // Today at 00:00
+  const futureEndDate = getNormalizedDate(today, 15, 0) // 15 days after today at 23:59:59.999
 
   // Construct URLs for the two endpoints.
   const historicalUrl =
@@ -86,7 +242,7 @@ const getOpenMeteoWeather = async ({
       timezone: 'auto',
       start_date: formatDate(pastStartDate),
       end_date: formatDate(pastEndDate),
-    });
+    })
 
   const forecastUrl =
     'https://api.open-meteo.com/v1/forecast?' +
@@ -99,85 +255,62 @@ const getOpenMeteoWeather = async ({
       timezone: 'auto',
       start_date: formatDate(futureStartDate),
       end_date: formatDate(futureEndDate),
-    });
+    })
 
-  try {
-    // Fetch historical and forecast data in parallel.
-    const [historicalResponse, forecastResponse] = await Promise.all([
-      fetch(historicalUrl),
-      fetch(forecastUrl),
-    ]);
+  const [historicalResult, forecastResult] = await Promise.allSettled([
+    fetchSource('historical', historicalUrl),
+    fetchSource('forecast', forecastUrl),
+  ])
 
-    if (!historicalResponse.ok) {
-      throw new Error(
-        `Error fetching historical weather data: ${historicalResponse.status} ${historicalResponse.statusText}`
-      );
-    }
-    if (!forecastResponse.ok) {
-      throw new Error(
-        `Error fetching forecast weather data: ${forecastResponse.status} ${forecastResponse.statusText}`
-      );
-    }
-
-    const historicalData = await historicalResponse.json();
-    const forecastData = await forecastResponse.json();
-
-    // Merge daily data: For each key in daily data, combine arrays.
-    const mergedDaily: Record<string, any> = {};
-    if (historicalData.daily && forecastData.daily) {
-      for (const key in historicalData.daily) {
-        mergedDaily[key] = [
-          ...historicalData.daily[key],
-          ...forecastData.daily[key],
-        ];
-      }
-    }
-
-    // Merge hourly data with overlap handling.
-    const mergedHourly: Record<string, any> = {};
-    if (historicalData.hourly && forecastData.hourly) {
-      // Define how many overlapping points (hours) to check.
-      const overlapCount = 24;
-      
-      // For each key in hourly data...
-      for (const key in historicalData.hourly) {
-        const histArr = historicalData.hourly[key];
-        const foreArr = forecastData.hourly[key];
-    
-        // Fill nulls in the overlapping region in historical data.
-        // The overlapping indices in historical data are from histArr.length - overlapCount to histArr.length - 1.
-        for (let i = histArr.length - overlapCount, j = 0; i < histArr.length; i++, j++) {
-          if (histArr[i] === null) {
-            // Replace a null historical value with the corresponding forecast value.
-            histArr[i] = foreArr[j];
-          }
-        }
-      }
-    
-      // Remove the first overlapCount points from each forecast hourly array.
-      const updatedForecastHourly: Record<string, any> = {};
-      for (const key in forecastData.hourly) {
-        updatedForecastHourly[key] = forecastData.hourly[key].slice(overlapCount);
-      }
-    
-      // Now merge the hourly datasets.
-      for (const key in historicalData.hourly) {
-        mergedHourly[key] = [
-          ...historicalData.hourly[key],
-          ...updatedForecastHourly[key],
-        ];
-      }
-    }
-    
-    const mergedData = {
-      daily: mergedDaily,
-      hourly: mergedHourly,
-    };
-    
-    return mergedData;
-  } catch (error) {
-    throw error;
+  const issues: WeatherIssue[] = []
+  const payloads: Record<WeatherSource, unknown> = {
+    historical: undefined,
+    forecast: undefined,
   }
-};
+  const results = {
+    historical: historicalResult,
+    forecast: forecastResult,
+  } as const
+  for (const source of ['historical', 'forecast'] as const) {
+    const result = results[source]
+    if (result.status === 'rejected') {
+      const reason: unknown = result.reason
+      issues.push({
+        source,
+        kind: 'request-failed',
+        message:
+          reason instanceof Error
+            ? reason.message
+            : `Error fetching ${source} weather data.`,
+      })
+    } else {
+      payloads[source] = result.value
+      issues.push(...describeIssues(source, result.value))
+    }
+  }
 
-export default getOpenMeteoWeather;
+  const tables = (section: 'daily' | 'hourly') => ({
+    historical: readTable(payloads.historical, section),
+    forecast: readTable(payloads.forecast, section),
+  })
+  const daily = tables('daily')
+  const hourly = tables('hourly')
+  const hasUsableData = [daily, hourly].some(
+    (pair) => pair.historical || pair.forecast
+  )
+
+  if (!hasUsableData) {
+    const failures = issues.filter((issue) => issue.kind === 'request-failed')
+    if (failures.length > 0) throw new WeatherRequestError(failures)
+    throw new IncompleteForecastError()
+  }
+
+  const locationDate = locationToday(payloads.forecast ?? payloads.historical)
+  return {
+    daily: mergeTables(daily.historical, daily.forecast, locationDate),
+    hourly: mergeTables(hourly.historical, hourly.forecast, locationDate),
+    issues,
+  }
+}
+
+export default getOpenMeteoWeather
