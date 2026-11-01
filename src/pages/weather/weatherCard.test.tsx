@@ -178,6 +178,22 @@ describe('WeatherCard', () => {
         expect(onSelectDate).toHaveBeenCalledWith('2026-03-09')
       })
 
+      it('scrolls forward in time on wheel up and back on wheel down', () => {
+        const region = renderScrollable(vi.fn())
+        region.scrollLeft = 500
+        fireEvent.wheel(region, { deltaY: -100 })
+        expect(region.scrollLeft).toBe(600)
+        fireEvent.wheel(region, { deltaY: 300 })
+        expect(region.scrollLeft).toBe(300)
+      })
+
+      it('leaves horizontal wheel gestures alone', () => {
+        const region = renderScrollable(vi.fn())
+        region.scrollLeft = 500
+        fireEvent.wheel(region, { deltaX: 80, deltaY: 5 })
+        expect(region.scrollLeft).toBe(500)
+      })
+
       it('does not change the day while the center stays within it', () => {
         const onSelectDate = vi.fn()
         const region = renderScrollable(onSelectDate)

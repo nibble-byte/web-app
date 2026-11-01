@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import moment from 'moment';
 import styles from './weatherCard.module.css';
@@ -30,6 +30,8 @@ const HOUR_WIDTH = 44;
 const Y_AXIS_WIDTH = 40;
 const CHART_HEIGHT = 260;
 const COMPACT_CHART_HEIGHT = 150;
+// Room for the horizontal scrollbar so the vertical axis never overflows.
+const SCROLLBAR_ALLOWANCE = 16;
 
 const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
     const theme = useTheme();
@@ -99,6 +101,21 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const hourlyForSelected = allHourly.filter((point) => point.timestamp.slice(0, 10) === selectedDate);
     const chartWidth = Y_AXIS_WIDTH + allHourly.length * HOUR_WIDTH;
     const step = allHourly.length > 1 ? (chartWidth - Y_AXIS_WIDTH - 10) / (allHourly.length - 1) : HOUR_WIDTH;
+
+    // Vertical wheel over the hourly chart scrolls it through time: up is forward, down is back.
+    // Horizontal wheel/trackpad gestures keep their normal behaviour.
+    const hasHourly = hourlyForSelected.length > 0;
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const onWheel = (event: WheelEvent) => {
+            if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+            event.preventDefault();
+            el.scrollLeft -= event.deltaY;
+        };
+        el.addEventListener('wheel', onWheel, { passive: false });
+        return () => el.removeEventListener('wheel', onWheel);
+    }, [hasHourly]);
 
     // Date of the hourly point in the middle of the visible chart area.
     const dateAtCenter = (el: HTMLDivElement) => {
@@ -196,7 +213,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                         aria-label="Hourly temperature, scroll to change day"
                         tabIndex={0}
                         onScroll={handleScroll}
-                        sx={{ overflowX: 'auto' }}
+                        sx={{ overflowX: 'auto', overflowY: 'hidden', height: mobile ? COMPACT_CHART_HEIGHT + SCROLLBAR_ALLOWANCE : CHART_HEIGHT + SCROLLBAR_ALLOWANCE }}
                     >
                         <LineChart width={chartWidth} height={mobile ? COMPACT_CHART_HEIGHT : CHART_HEIGHT} data={allHourly} margin={{ left: 0, right: 10 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
