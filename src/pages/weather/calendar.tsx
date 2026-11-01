@@ -4,6 +4,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import moment, { Moment } from "moment";
 import styles from './calendar.module.css';
 import { DailyForecast } from './parseForecast';
+import { weatherCodeIcons } from './weatherCodeMapping';
 
 interface CalendarProps {
   dailyForecasts: DailyForecast[];
@@ -122,6 +123,12 @@ export const Calendar: React.FC<CalendarProps> = ({
                   <Box className={styles.dateBox}>
                     <span style={{ fontWeight: isToday ? "bold" : "normal" }}>{displayText}</span>
                   </Box>
+                  {forecast && (
+                    <i
+                      className={`wi ${(forecast.weathercode !== null && weatherCodeIcons[forecast.weathercode]) || 'wi-na'} ${styles.weatherIcon}`}
+                      aria-hidden="true"
+                    ></i>
+                  )}
                   {forecast && (
                     <Box
                       className={styles.tempBox}

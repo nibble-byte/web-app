@@ -76,6 +76,17 @@ describe('Calendar', () => {
     expect(select).toHaveBeenNthCalledWith(2, 1)
   })
 
+  it('shows a weather icon on days with a forecast, with a fallback for unknown codes', () => {
+    renderCalendar([day(0, { weathercode: 0 }), day(1, { weathercode: null })])
+
+    const icon = (name: string) =>
+      screen
+        .getByRole('button', { name: new RegExp(name) })
+        .querySelector('i.wi')
+    expect(icon('Tuesday, March 10')).toHaveClass('wi-day-sunny')
+    expect(icon('Wednesday, March 11')).toHaveClass('wi-na')
+  })
+
   it('disables days without a forecast', () => {
     renderCalendar([day(0), day(2)])
 

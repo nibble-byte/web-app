@@ -110,6 +110,20 @@
   color: inherit;
 }
 
+.weatherIcon {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #c28a27;
+  pointer-events: none;
+}
+
+.selectedDay .weatherIcon {
+  color: #fff;
+}
+
 .selectedDay .tempBox,
 .selectedDay .rainBox {
   background: rgba(255, 255, 255, 0.16);
@@ -169,6 +183,12 @@
 .mobile .dateBox {
   top: 4px;
   font-size: 0.7rem;
+}
+
+.mobile .weatherIcon {
+  bottom: 6px;
+  left: 4px;
+  font-size: 1.05rem;
 }
 
 .mobile .tempBox {
