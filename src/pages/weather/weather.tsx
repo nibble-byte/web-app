@@ -151,6 +151,33 @@ const Weather: React.FC = () => {
     }
   };
 
+  // Loads every day of an earlier month (YYYY-MM) that is not loaded yet, up to the first loaded day.
+  const loadMonth = async (month: string) => {
+    const first = weatherData?.dailyForecasts[0]?.time.slice(0, 10);
+    const monthStart = `${month}-01`;
+    if (!first || !userLocation || loadingEarlier.current || first <= monthStart) return;
+    const monthEnd = moment(monthStart).endOf('month').format('YYYY-MM-DD');
+    const dayBeforeFirst = moment(first).subtract(1, 'days').format('YYYY-MM-DD');
+    const requestId = latestRequest.current;
+    loadingEarlier.current = true;
+    try {
+      const history = await getOpenMeteoHistory({
+        ...userLocation,
+        startDate: monthStart,
+        endDate: monthEnd < dayBeforeFirst ? monthEnd : dayBeforeFirst,
+      });
+      if (requestId !== latestRequest.current) return;
+      const merged = mergeForecasts(weatherData!, parseForecast(history));
+      const added = merged.dailyForecasts.length - weatherData!.dailyForecasts.length;
+      setWeatherData(merged);
+      setSelectedForecastIndex((index) => (index === null ? index : index + added));
+    } catch {
+      // The month stays empty; its days remain available to retry.
+    } finally {
+      loadingEarlier.current = false;
+    }
+  };
+
   const fetchWeatherData = () => runRequest(async () => userLocation ?? handleLocation());
 
   // Handle zip code submit
@@ -253,6 +280,7 @@ const Weather: React.FC = () => {
                 <Typography className={styles.sectionHint}>Select a day for the hourly outlook</Typography>
               </Box>
               <Calendar
+                onLoadMonth={loadMonth}
                 dailyForecasts={dailyForecasts}
                 selectedForecastIndex={selectedForecastIndex}
                 setSelectedForecastIndex={setSelectedForecastIndex}

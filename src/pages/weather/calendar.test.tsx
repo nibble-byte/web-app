@@ -21,7 +21,8 @@ const day = (
 
 const renderCalendar = (
   forecasts: DailyForecast[],
-  selected: number | null = null
+  selected: number | null = null,
+  onLoadMonth?: (month: string) => void
 ) => {
   const select = vi.fn()
   render(
@@ -29,6 +30,7 @@ const renderCalendar = (
       dailyForecasts={forecasts}
       selectedForecastIndex={selected}
       setSelectedForecastIndex={select}
+      onLoadMonth={onLoadMonth}
     />
   )
   return select
@@ -85,6 +87,94 @@ describe('Calendar', () => {
         .querySelector('i.wi')
     expect(icon('Tuesday, March 10')).toHaveClass('wi-day-sunny')
     expect(icon('Wednesday, March 11')).toHaveClass('wi-na')
+  })
+
+  describe('forecasts spanning several months', () => {
+    // March 30 - April 2, 2026
+    const spanning = [0, 1, 2, 3].map((i) =>
+      day(i, {
+        time: ['2026-03-30', '2026-03-31', '2026-04-01', '2026-04-02'][i],
+      })
+    )
+
+    it('shows the month of the selected day, filled out with the previous month', () => {
+      renderCalendar(spanning, 2)
+      expect(screen.getByText('April 2026')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /^Thursday, April 2,/ })
+      ).toBeInTheDocument()
+      // March 29 - 31 only fill the first week.
+      expect(
+        screen.getByRole('button', { name: /^Tuesday, March 31,/ })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /March 28/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows five weeks of days even for a short month', () => {
+      // February 2026 starts on a Sunday and has exactly four weeks.
+      renderCalendar(
+        [day(0, { time: '2026-02-10' }), day(1, { time: '2026-03-02' })],
+        0
+      )
+      expect(screen.getByText('February 2026')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /January 25/ })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /February 28/ })
+      ).toBeInTheDocument()
+    })
+
+    it('loads the whole previous month when moving to it', async () => {
+      const user = userEvent.setup()
+      const load = vi.fn()
+      renderCalendar(spanning, 2, load)
+      await user.click(screen.getByRole('button', { name: 'Previous month' }))
+      expect(load).toHaveBeenCalledWith('2026-03')
+    })
+
+    it('loads the previous month when a previous-month day without data is clicked', async () => {
+      const user = userEvent.setup()
+      const load = vi.fn()
+      renderCalendar(
+        [day(0, { time: '2026-04-01' }), day(1, { time: '2026-04-02' })],
+        0,
+        load
+      )
+      await user.click(screen.getByRole('button', { name: /March 31/ }))
+      expect(load).toHaveBeenCalledWith('2026-03')
+      expect(screen.getByText('March 2026')).toBeInTheDocument()
+    })
+
+    it('changes month with the previous and next buttons', async () => {
+      const user = userEvent.setup()
+      renderCalendar(spanning, 2)
+      expect(screen.getByRole('button', { name: 'Next month' })).toBeDisabled()
+
+      await user.click(screen.getByRole('button', { name: 'Previous month' }))
+      expect(screen.getByText('March 2026')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /March 31/ })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /April 2/ })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Previous month' })
+      ).toBeDisabled()
+
+      await user.click(screen.getByRole('button', { name: 'Next month' }))
+      expect(screen.getByText('April 2026')).toBeInTheDocument()
+    })
+
+    it('has no month buttons when the data fits in one month', () => {
+      renderCalendar([day(0), day(1)])
+      expect(
+        screen.queryByRole('button', { name: 'Next month' })
+      ).not.toBeInTheDocument()
+    })
   })
 
   it('disables days without a forecast', () => {

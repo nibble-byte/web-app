@@ -576,6 +576,42 @@ describe('Weather', () => {
     ).toHaveAttribute('aria-pressed', 'true')
   })
 
+  describe('moving the calendar to the previous month', () => {
+    it('requests every day of the previous month', async () => {
+      const user = userEvent.setup()
+      const fetchMock = mockFetch([
+        {
+          match: 'zippopotam.us',
+          handler: () => jsonResponse(zippopotamResponse()),
+        },
+        {
+          match: 'archive-api.open-meteo.com',
+          handler: (url) =>
+            url.includes('start_date=2026-02-01')
+              ? jsonResponse(buildOpenMeteoResponse(0, 0))
+              : jsonResponse(buildOpenMeteoResponse(2, 0)),
+        },
+        {
+          match: 'api.open-meteo.com/v1/forecast',
+          handler: () => jsonResponse(buildOpenMeteoResponse(2, 2)),
+        },
+      ])
+      renderWeather()
+      await user.type(screen.getByLabelText('Zip Code'), '98101')
+      await user.click(screen.getByRole('button', { name: 'Search' }))
+      await screen.findByText('Daily forecast')
+
+      await user.click(screen.getByRole('button', { name: 'Previous month' }))
+
+      expect(screen.getByText('February 2026')).toBeInTheDocument()
+      const monthRequest = fetchMock.mock.calls
+        .map(([url]) => new URL(String(url)))
+        .find((url) => url.searchParams.get('start_date') === '2026-02-01')
+      expect(monthRequest).toBeDefined()
+      expect(monthRequest!.searchParams.get('end_date')).toBe('2026-02-28')
+    })
+  })
+
   describe('loading earlier days in the day strip', () => {
     const openStrip = async (earlier: () => Response) => {
       const user = userEvent.setup()

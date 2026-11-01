@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Box, Button } from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import moment, { Moment } from "moment";
@@ -14,6 +14,8 @@ interface CalendarProps {
   layout?: 'grid' | 'strip';
   // Strip only: called when the user scrolls to the first day so earlier days can be loaded.
   onReachStart?: () => void;
+  // Grid only: called with a YYYY-MM month when the user moves to it, so its whole month can be loaded.
+  onLoadMonth?: (month: string) => void;
 }
 
 // Distance from the left edge (px) that counts as having reached the start of the strip.
@@ -25,10 +27,39 @@ export const Calendar: React.FC<CalendarProps> = ({
   setSelectedForecastIndex,
   layout = 'grid',
   onReachStart,
+  onLoadMonth,
 }) => {
   const stripRef = useRef<HTMLDivElement>(null);
   const mobile = useMediaQuery('(max-width:680px)');
   const profile = mobile ? styles.mobile : '';
+
+  // Months (YYYY-MM) that contain forecast days, in order. Only one is shown at a time when there are several.
+  const months = Array.from(new Set(dailyForecasts.map((f) => f.time.slice(0, 7))));
+  const selectedMonth =
+    selectedForecastIndex === null ? null : dailyForecasts[selectedForecastIndex]?.time.slice(0, 7) ?? null;
+  const [viewedMonth, setViewedMonth] = useState<string | null>(selectedMonth);
+
+  // The month follows the selected day, e.g. when it is picked in the strip or the data is reloaded.
+  const [followedMonth, setFollowedMonth] = useState(selectedMonth);
+  if (selectedMonth !== followedMonth) {
+    setFollowedMonth(selectedMonth);
+    if (selectedMonth) setViewedMonth(selectedMonth);
+  }
+
+  const todayMonth = moment().format('YYYY-MM');
+  const shownMonth = viewedMonth ?? (months.includes(todayMonth) ? todayMonth : months[0]);
+  const previousMonth = moment(shownMonth + '-01').subtract(1, 'month').format('YYYY-MM');
+  const nextMonth = moment(shownMonth + '-01').add(1, 'month').format('YYYY-MM');
+  // Several months of data, or a loader for earlier months, switches the grid to one month at a time.
+  const monthView = months.length > 1 || !!onLoadMonth;
+  const canGoPrevious = !!onLoadMonth || months.includes(previousMonth);
+  const canGoNext = months.includes(nextMonth);
+
+  // Moves the grid to a month and asks for the whole month if it is not loaded yet.
+  const goToMonth = (month: string) => {
+    setViewedMonth(month);
+    onLoadMonth?.(month);
+  };
 
   // Left-edge scroll width and first date before an update, so prepended days do not shift what the user is looking at.
   const stripSnapshot = useRef<{ width: number; firstTime: string } | null>(null);
@@ -60,14 +91,18 @@ export const Calendar: React.FC<CalendarProps> = ({
     selected?.scrollIntoView?.({ inline: 'center', block: 'nearest' });
   }, [layout, selectedForecastIndex]);
 
-  // Use the first and last forecast dates to determine the calendar range
-  const firstForecastDate = moment(dailyForecasts[0].time);
-  const lastForecastDate = moment(dailyForecasts[dailyForecasts.length - 1].time);
-
-  // Find the Sunday before (or on) the first forecast date
-  const calendarStartDate = moment(firstForecastDate).startOf("week");
-  // Find the Saturday after (or on) the last forecast date
-  const calendarEndDate = moment(lastForecastDate).endOf("week");
+  // Month view: five weeks (six if the month needs them) holding every day of the month. The
+  // leading cells are filled with the previous month. Otherwise the range covers the whole forecast.
+  const monthStart = moment(shownMonth + '-01');
+  const monthEnd = moment(monthStart).endOf('month');
+  const monthEndOfWeek = moment(monthEnd).endOf('week');
+  const monthWeeks = Math.max(5, (monthEndOfWeek.diff(moment(monthStart).startOf('week'), 'days') + 1) / 7);
+  const calendarStartDate = monthView
+    ? moment(monthEndOfWeek).subtract(monthWeeks, 'weeks').add(1, 'day').startOf('day')
+    : moment(dailyForecasts[0].time).startOf('week');
+  const calendarEndDate = monthView
+    ? monthEndOfWeek
+    : moment(dailyForecasts[dailyForecasts.length - 1].time).endOf('week');
 
   // Total number of days to display in the grid.
   const totalCells = calendarEndDate.diff(calendarStartDate, "days") + 1;
@@ -103,6 +138,8 @@ export const Calendar: React.FC<CalendarProps> = ({
               const forecast = forecastIdx >= 0 ? dailyForecasts[forecastIdx] : null;
               const high = forecast?.temperature_2m_max ?? null;
               const rainPercent = forecast?.precipitation_probability_max ?? null;
+              // Cells of earlier months without data are clickable: they load that whole month.
+              const loadable = !forecast && !!onLoadMonth && monthView && formattedDate < shownMonth + '-01';
               const highLabel = high === null ? 'high temperature unavailable' : `high ${Math.round(high)} degrees`;
               const rainLabel = rainPercent === null ? 'chance of rain unavailable' : `${rainPercent}% chance of rain`;
 
@@ -112,13 +149,14 @@ export const Calendar: React.FC<CalendarProps> = ({
                   variant="outlined"
                   className={`${styles.dayButton} ${isSelected ? styles.selectedDay : ''} ${isToday ? styles.today : ''}`}
                   onClick={() => {
+                    if (monthView && cellDate.format('YYYY-MM') !== shownMonth) goToMonth(cellDate.format('YYYY-MM'));
                     if (isAvailable && forecastIdx >= 0) {
                       setSelectedForecastIndex(forecastIdx);
                     }
                   }}
                   aria-pressed={isSelected}
-                  aria-label={`${cellDate.format('dddd, MMMM D')}${forecast ? `, ${highLabel}, ${rainLabel}` : ', no forecast available'}`}
-                  disabled={!isAvailable}
+                  aria-label={`${cellDate.format('dddd, MMMM D')}${forecast ? `, ${highLabel}, ${rainLabel}` : loadable ? ', load forecast' : ', no forecast available'}`}
+                  disabled={!isAvailable && !loadable}
                 >
                   <Box className={styles.dateBox}>
                     <span style={{ fontWeight: isToday ? "bold" : "normal" }}>{displayText}</span>
@@ -163,7 +201,29 @@ export const Calendar: React.FC<CalendarProps> = ({
     <Box className={`${styles.calendar} ${profile}`}>
       {/* Month and Year Header */}
       <Box className={styles.monthHeading}>
-        {firstForecastDate.format("MMMM YYYY")}
+        {monthView && (
+          <Button
+            size="small"
+            className={styles.monthButton}
+            onClick={() => goToMonth(previousMonth)}
+            disabled={!canGoPrevious}
+            aria-label="Previous month"
+          >
+            ‹
+          </Button>
+        )}
+        <span aria-live="polite">{moment(shownMonth + '-01').format("MMMM YYYY")}</span>
+        {monthView && (
+          <Button
+            size="small"
+            className={styles.monthButton}
+            onClick={() => goToMonth(nextMonth)}
+            disabled={!canGoNext}
+            aria-label="Next month"
+          >
+            ›
+          </Button>
+        )}
       </Box>
 
       {/* Weekday Headers */}
@@ -177,9 +237,9 @@ export const Calendar: React.FC<CalendarProps> = ({
         ))}
       </Box>
 
-      {/* Calendar Grid: Only render weeks with at least one available date */}
+      {/* Calendar Grid: the month view shows every week; otherwise only weeks with an available date */}
       {weeks.map((week, weekIdx) => {
-        const weekHasData = week.some((cellDate) =>
+        const weekHasData = monthView || week.some((cellDate) =>
           availableDates.includes(cellDate.format("YYYY-MM-DD"))
         );
         if (!weekHasData) return null;
@@ -188,7 +248,13 @@ export const Calendar: React.FC<CalendarProps> = ({
             key={weekIdx}
             className={styles.week}
           >
-            {week.map((cellDate) => renderDay(cellDate))}
+            {week.map((cellDate) =>
+              monthView && cellDate.isAfter(monthEnd) ? (
+                <Box key={cellDate.format("YYYY-MM-DD")} aria-hidden="true" />
+              ) : (
+                renderDay(cellDate)
+              )
+            )}
           </Box>
         );
       })}
