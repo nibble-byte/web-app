@@ -165,3 +165,79 @@
     padding-left: 0;
   }
 }
+
+/* Compact profile, applied by the component on phone-sized screens. */
+.weatherCard.mobile {
+  padding: 12px;
+}
+
+.mobile .closeRow {
+  margin-bottom: 0;
+}
+
+.mobile .dayPicker {
+  margin-bottom: 10px;
+}
+
+.mobile .summary {
+  gap: 10px;
+  padding-bottom: 10px;
+}
+
+.mobile .conditions {
+  gap: 10px;
+  min-width: 0;
+}
+
+.mobile .conditions i {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  font-size: 1.8rem;
+}
+
+.mobile .date {
+  font-size: 0.9rem !important;
+}
+
+.mobile .temperature {
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.mobile .temperatureValue {
+  font-size: 2rem !important;
+}
+
+.mobile .temperatureRange {
+  font-size: 0.8rem !important;
+}
+
+.mobile .metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 10px 0 0;
+}
+
+.mobile .metric {
+  padding: 0 8px;
+}
+
+.mobile .metricValue {
+  font-size: 0.85rem !important;
+}
+
+.mobile .metricValue small {
+  font-size: 0.6rem;
+}
+
+.mobile .hourlySection {
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
+.mobile .chartTitle {
+  margin-bottom: 4px !important;
+  font-size: 0.85rem !important;
+}

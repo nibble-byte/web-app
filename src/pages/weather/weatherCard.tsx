@@ -13,6 +13,7 @@ import {
     ReferenceLine
 } from 'recharts';
 import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { DailyForecast, HourlyForecast } from './parseForecast';
 
 interface WeatherCardProps {
@@ -28,6 +29,7 @@ interface WeatherCardProps {
 const HOUR_WIDTH = 44;
 const Y_AXIS_WIDTH = 40;
 const CHART_HEIGHT = 260;
+const COMPACT_CHART_HEIGHT = 150;
 
 const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
     const theme = useTheme();
@@ -80,6 +82,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     // Date last chosen by scrolling the chart; the chart must not re-center on it.
     const scrollSelectedDate = useRef<string | null>(null);
     const theme = useTheme();
+    const mobile = useMediaQuery('(max-width:680px)');
     const dayName = moment(time).format('dddd');
     const fullDate = moment(time).format('LL');
     const iconClass = (weathercode !== null && weatherCodeIcons[weathercode]) || 'wi-na';
@@ -135,7 +138,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const headlineTemperature = currentPoint ? currentPoint.temperature : temperature_2m_max;
 
     return (
-        <Box className={`${styles.weatherCard} ${theme.palette.mode === 'dark' ? styles.dark : ''}`}>
+        <Box className={`${styles.weatherCard} ${theme.palette.mode === 'dark' ? styles.dark : ''} ${mobile ? styles.mobile : ''}`}>
             <Box className={styles.closeRow}>
                 <Button size="small" onClick={onClose} aria-label="Close weather details">
                     Close
@@ -195,7 +198,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                         onScroll={handleScroll}
                         sx={{ overflowX: 'auto' }}
                     >
-                        <LineChart width={chartWidth} height={CHART_HEIGHT} data={allHourly} margin={{ left: 0, right: 10 }}>
+                        <LineChart width={chartWidth} height={mobile ? COMPACT_CHART_HEIGHT : CHART_HEIGHT} data={allHourly} margin={{ left: 0, right: 10 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
                             <XAxis dataKey="timestamp" interval={2} tickFormatter={(value) => moment(value).format('h A')} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
                             <YAxis width={Y_AXIS_WIDTH} domain={[0, 120]} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
