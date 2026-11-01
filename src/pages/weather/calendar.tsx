@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Box, Button } from "@mui/material";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import moment, { Moment } from "moment";
 import styles from './calendar.module.css';
 import { DailyForecast } from './parseForecast';
@@ -25,6 +26,8 @@ export const Calendar: React.FC<CalendarProps> = ({
   onReachStart,
 }) => {
   const stripRef = useRef<HTMLDivElement>(null);
+  const mobile = useMediaQuery('(max-width:680px)');
+  const profile = mobile ? styles.mobile : '';
 
   // Left-edge scroll width and first date before an update, so prepended days do not shift what the user is looking at.
   const stripSnapshot = useRef<{ width: number; firstTime: string } | null>(null);
@@ -143,14 +146,14 @@ export const Calendar: React.FC<CalendarProps> = ({
 
   if (layout === 'strip') {
     return (
-      <Box className={styles.strip} ref={stripRef} onScroll={handleStripScroll} role="group" aria-label="Select a day">
+      <Box className={`${styles.strip} ${profile}`} ref={stripRef} onScroll={handleStripScroll} role="group" aria-label="Select a day">
         {dailyForecasts.map((f) => renderDay(moment(f.time)))}
       </Box>
     );
   }
 
   return (
-    <Box className={styles.calendar}>
+    <Box className={`${styles.calendar} ${profile}`}>
       {/* Month and Year Header */}
       <Box className={styles.monthHeading}>
         {firstForecastDate.format("MMMM YYYY")}

@@ -130,45 +130,62 @@
   scroll-snap-align: center;
 }
 
-@media (max-width: 560px) {
-  .weekdays,
-  .week {
-    gap: 4px;
-  }
+/* Compact profile, applied by the component on phone-sized screens. */
+.mobile .monthHeading {
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
 
-  .dayButton {
-    height: 68px;
-  }
+.mobile .weekdays,
+.mobile .week {
+  gap: 4px;
+}
 
-  .strip .dayButton {
-    flex-basis: 68px;
-    width: 68px;
-  }
+.mobile .weekdays {
+  margin-bottom: 4px;
+  font-size: 0.62rem;
+}
 
-  .dateBox {
-    top: 5px;
-    font-size: 0.7rem;
-  }
+.mobile .week {
+  margin-bottom: 4px;
+}
 
-  .tempBox {
-    right: 1px;
-    bottom: 19px;
-    gap: 0;
-    font-size: 0.56rem;
-  }
+.mobile .dayButton {
+  height: 60px;
+  border-radius: 5px !important;
+}
 
-  .tempBox span[role='img'] {
-    display: none !important;
-  }
+.mobile.strip {
+  gap: 4px;
+  padding-bottom: 4px;
+}
 
-  .rainBox {
-    right: 1px;
-    bottom: 2px;
-    gap: 0;
-    font-size: 0.56rem;
-  }
+.mobile.strip .dayButton {
+  flex-basis: 56px;
+  width: 56px;
+  height: 56px;
+}
 
-  .rainBox span[role='img'] {
-    display: none !important;
-  }
+.mobile .dateBox {
+  top: 4px;
+  font-size: 0.7rem;
+}
+
+.mobile .tempBox {
+  right: 1px;
+  bottom: 18px;
+  gap: 0;
+  font-size: 0.56rem;
+}
+
+.mobile .rainBox {
+  right: 1px;
+  bottom: 2px;
+  gap: 0;
+  font-size: 0.56rem;
+}
+
+.mobile .tempBox span[role='img'],
+.mobile .rainBox span[role='img'] {
+  display: none !important;
 }
