@@ -134,20 +134,51 @@ describe('WeatherCard', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  describe('jump to today and now', () => {
+    const jump = () =>
+      screen.getByRole('button', { name: 'Jump to today and now' })
+
+    it('selects today when it is loaded', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      vi.setSystemTime(new Date(2026, 2, 11, 1, 30))
+      const onSelectDate = vi.fn()
+      renderWithProviders(
+        <WeatherCard
+          forecastData={forecast()}
+          hourlyData={{
+            time: ['2026-03-10T23:00', '2026-03-11T00:00', '2026-03-11T01:00'],
+            temperature_2m: [50, 51, 52],
+            precipitation: [0, 0, 0],
+            precipitation_probability: [0, 0, 0],
+          }}
+          onClose={onClose}
+          onSelectDate={onSelectDate}
+        />
+      )
+      fireEvent.click(jump())
+      expect(onSelectDate).toHaveBeenCalledWith('2026-03-11')
+    })
+
+    it('is disabled when the loaded data does not include now', () => {
+      renderCard(forecast(), hourlyFor('2026-03-10'))
+      expect(jump()).toBeDisabled()
+    })
+  })
+
   describe('hourly chart', () => {
     it('is shown when valid hourly points exist for the selected day', () => {
       renderCard(forecast(), hourlyFor('2026-03-10'))
-      expect(screen.getByText('Hourly temperature')).toBeInTheDocument()
+      expect(screen.getByText('Hourly Temperature')).toBeInTheDocument()
     })
 
     it('is hidden when there is no hourly data', () => {
       renderCard(forecast(), noHourly)
-      expect(screen.queryByText('Hourly temperature')).not.toBeInTheDocument()
+      expect(screen.queryByText('Hourly Temperature')).not.toBeInTheDocument()
     })
 
     it('is hidden when hourly data only covers other days', () => {
       renderCard(forecast(), hourlyFor('2026-03-11'))
-      expect(screen.queryByText('Hourly temperature')).not.toBeInTheDocument()
+      expect(screen.queryByText('Hourly Temperature')).not.toBeInTheDocument()
     })
 
     describe('scrolling across days', () => {

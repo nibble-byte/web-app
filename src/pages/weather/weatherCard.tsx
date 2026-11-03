@@ -169,6 +169,19 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedDate, firstHour, hourlyForSelected.length > 0]);
 
+    // Selects today and centers the chart on the current hour.
+    const jumpToNow = () => {
+        const el = scrollRef.current;
+        if (!nowPoint) return;
+        const todayDate = nowPoint.timestamp.slice(0, 10);
+        if (todayDate !== selectedDate) {
+            scrollSelectedDate.current = todayDate;
+            onSelectDate?.(todayDate);
+        }
+        const index = allHourly.indexOf(nowPoint);
+        if (el) el.scrollLeft = index * step - el.clientWidth / 2;
+    };
+
     // Selects the day under the center of the chart as the user scrolls.
     const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
         const date = dateAtCenter(event.currentTarget);
@@ -237,7 +250,13 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
             </Box>
             {hourlyForSelected.length > 0 && (
                 <Box className={styles.hourlySection}>
-                    <Typography className={styles.chartTitle}>Hourly temperature</Typography>
+                    <Box className={styles.chartHeader}>
+                        <Typography className={styles.chartTitle}>Hourly Temperature</Typography>
+                        <Button size="small" className={styles.nowButton} onClick={jumpToNow} disabled={!nowInRange || !nowPoint} aria-label="Jump to today and now">
+                            <span className={styles.nowDot} aria-hidden="true" />
+                            Today &amp; Now
+                        </Button>
+                    </Box>
                     <Box sx={{ display: 'flex' }}>
                         <Box aria-hidden="true" sx={{ flex: 'none', width: Y_AXIS_WIDTH, height: chartHeight }}>
                             <LineChart width={Y_AXIS_WIDTH} height={chartHeight} data={allHourly} margin={{ left: 0, right: 0 }}>

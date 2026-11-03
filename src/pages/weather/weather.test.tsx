@@ -283,14 +283,14 @@ describe('Weather', () => {
 
       await user.click(screen.getByRole('button', { name: /March 10/ }))
       expect(screen.getByText('DAILY CONDITIONS')).toBeInTheDocument()
-      expect(screen.queryByText('Hourly temperature')).not.toBeInTheDocument()
+      expect(screen.queryByText('Hourly Temperature')).not.toBeInTheDocument()
     })
 
     it('shows the hourly chart when valid hourly data exists for the selected day', async () => {
       const user = await searchWith(() => buildOpenMeteoResponse(2, 0))
       await screen.findByText('Daily forecast')
       await user.click(screen.getByRole('button', { name: /March 10/ }))
-      expect(screen.getByText('Hourly temperature')).toBeInTheDocument()
+      expect(screen.getByText('Hourly Temperature')).toBeInTheDocument()
     })
 
     it('shows the daily forecast with a notice when only hourly data is invalid', async () => {
