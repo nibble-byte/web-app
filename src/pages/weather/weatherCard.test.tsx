@@ -22,6 +22,7 @@ const noHourly: HourlyForecast = {
   temperature_2m: [],
   precipitation: [],
   precipitation_probability: [],
+  windspeed_10m: [],
 }
 
 const hourlyFor = (date: string): HourlyForecast => ({
@@ -29,6 +30,7 @@ const hourlyFor = (date: string): HourlyForecast => ({
   temperature_2m: [50, 51, 52],
   precipitation: [0, 0.02, null],
   precipitation_probability: [0, 35, null],
+  windspeed_10m: [4, 9, null],
 })
 
 const onClose = vi.fn()
@@ -150,6 +152,7 @@ describe('WeatherCard', () => {
             temperature_2m: [50, 51, 52],
             precipitation: [0, 0, 0],
             precipitation_probability: [0, 0, 0],
+            windspeed_10m: [0, 0, 0],
           }}
           onClose={onClose}
           onSelectDate={onSelectDate}
@@ -162,6 +165,35 @@ describe('WeatherCard', () => {
     it('is disabled when the loaded data does not include now', () => {
       renderCard(forecast(), hourlyFor('2026-03-10'))
       expect(jump()).toBeDisabled()
+    })
+  })
+
+  describe('y axis menu', () => {
+    const axisLabels = () =>
+      Array.from(
+        document.querySelectorAll('.recharts-yAxis .recharts-label')
+      ).map((node) => node.textContent)
+
+    it('lets users turn each y axis on and off', async () => {
+      const user = userEvent.setup()
+      renderCard(forecast(), hourlyFor('2026-03-10'))
+
+      await user.click(screen.getByRole('button', { name: 'Choose y axes' }))
+      const rain = screen.getByRole('menuitem', { name: 'Rain chance' })
+      expect(rain).toBeInTheDocument()
+      await user.click(rain)
+      expect(
+        screen.getByRole('checkbox', { name: 'Rain chance' })
+      ).not.toBeChecked()
+      expect(
+        screen.getByRole('checkbox', { name: 'Temperature' })
+      ).toBeChecked()
+      expect(axisLabels()).not.toContain('Rain chance (%)')
+
+      await user.click(rain)
+      expect(
+        screen.getByRole('checkbox', { name: 'Rain chance' })
+      ).toBeChecked()
     })
   })
 
@@ -192,6 +224,7 @@ describe('WeatherCard', () => {
         temperature_2m: Array.from({ length: 48 }, () => 50),
         precipitation: Array.from({ length: 48 }, () => 0),
         precipitation_probability: Array.from({ length: 48 }, () => 0),
+        windspeed_10m: Array.from({ length: 48 }, () => 0),
       }
 
       const renderScrollable = (onSelectDate: (date: string) => void) => {

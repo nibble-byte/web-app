@@ -27,6 +27,7 @@ export const buildOpenMeteoResponse = (days = DAYS, startIndex = 0) => ({
     temperature_2m: range(days * HOURS, (i) => 50 + (i % HOURS)),
     precipitation: range(days * HOURS, (i) => (i % HOURS) / 100),
     precipitation_probability: range(days * HOURS, (i) => (i % HOURS) * 4),
+    windspeed_10m: range(days * HOURS, (i) => 5 + (i % HOURS)),
   },
 })
 

@@ -173,6 +173,12 @@
   border-color: currentColor !important;
 }
 
+.axesButton {
+  grid-column: 3;
+  justify-self: end;
+  text-transform: none !important;
+}
+
 .nowDot {
   width: 8px;
   height: 8px;

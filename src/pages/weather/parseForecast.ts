@@ -17,6 +17,7 @@ export interface HourlyForecast {
   temperature_2m: number[]
   precipitation: (number | null)[]
   precipitation_probability: (number | null)[]
+  windspeed_10m: (number | null)[]
 }
 
 export interface ParsedForecast {
@@ -130,17 +131,20 @@ const parseHourly = (hourly: unknown): HourlyForecast => {
     temperature_2m: [],
     precipitation: [],
     precipitation_probability: [],
+    windspeed_10m: [],
   }
   if (!isRecord(hourly) || !Array.isArray(hourly.time)) return empty
   const temperatures = columnOf(hourly, 'temperature_2m')
   const precipitation = columnOf(hourly, 'precipitation')
   const probability = columnOf(hourly, 'precipitation_probability')
+  const winds = columnOf(hourly, 'windspeed_10m')
 
   const points: {
     time: string
     temperature: number
     precipitation: number | null
     probability: number | null
+    wind: number | null
   }[] = []
   hourly.time.forEach((time, i) => {
     const temperature = finiteOrNull(temperatures[i])
@@ -150,6 +154,7 @@ const parseHourly = (hourly: unknown): HourlyForecast => {
         temperature,
         precipitation: finiteOrNull(precipitation[i]),
         probability: finiteOrNull(probability[i]),
+        wind: finiteOrNull(winds[i]),
       })
     }
   })
@@ -159,6 +164,7 @@ const parseHourly = (hourly: unknown): HourlyForecast => {
     temperature_2m: sorted.map((point) => point.temperature),
     precipitation: sorted.map((point) => point.precipitation),
     precipitation_probability: sorted.map((point) => point.probability),
+    windspeed_10m: sorted.map((point) => point.wind),
   }
 }
 
@@ -195,6 +201,7 @@ export const mergeForecasts = (
       temperature: number
       precipitation: number | null
       probability: number | null
+      wind: number | null
     }
   >()
   for (const hourly of [additional.hourly, existing.hourly]) {
@@ -203,6 +210,7 @@ export const mergeForecasts = (
         temperature: hourly.temperature_2m[i],
         precipitation: hourly.precipitation[i],
         probability: hourly.precipitation_probability[i],
+        wind: hourly.windspeed_10m[i],
       })
     )
   }
@@ -215,6 +223,7 @@ export const mergeForecasts = (
       temperature_2m: times.map((t) => points.get(t)!.temperature),
       precipitation: times.map((t) => points.get(t)!.precipitation),
       precipitation_probability: times.map((t) => points.get(t)!.probability),
+      windspeed_10m: times.map((t) => points.get(t)!.wind),
     },
     omittedRecords: existing.omittedRecords + additional.omittedRecords,
   }

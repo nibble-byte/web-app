@@ -186,6 +186,7 @@ describe('parseForecast', () => {
         temperature_2m: [],
         precipitation: [],
         precipitation_probability: [],
+        windspeed_10m: [],
       }
       expect(parseForecast({ daily }).hourly).toEqual(empty)
       expect(parseForecast({ daily, hourly: null }).hourly).toEqual(empty)
@@ -209,6 +210,7 @@ describe('parseForecast', () => {
           temperature_2m: [53, 51, 99, NaN, 54, 77],
           precipitation: [0.3, 0.1, 9, 9, null, 7],
           precipitation_probability: [30, 10, 99, 99, 'x', 70],
+          windspeed_10m: [8, 5, 99, 99, null, 70],
         },
       })
       expect(hourly).toEqual({
@@ -216,6 +218,7 @@ describe('parseForecast', () => {
         temperature_2m: [51, 53, 54],
         precipitation: [0.1, 0.3, null],
         precipitation_probability: [10, 30, null],
+        windspeed_10m: [5, 8, null],
       })
     })
 

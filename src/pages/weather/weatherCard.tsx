@@ -1,5 +1,5 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import React, { useEffect, useState, useLayoutEffect, useRef } from 'react';
+import { Box, Button, Checkbox, FormControlLabel, Menu, MenuItem, Typography } from '@mui/material';
 import moment from 'moment';
 import styles from './weatherCard.module.css';
 import { weatherCodeIcons } from './weatherCodeMapping';
@@ -31,7 +31,14 @@ const AXIS_WIDTH = 56;
 const TEMP_COLOR = '#187a72';
 const RAIN_COLOR = '#1976d2';
 const PRECIP_COLOR = '#8e44ad';
-const Y_AXIS_WIDTH = AXIS_WIDTH * 3;
+const WIND_COLOR = '#ef8a17';
+const AXIS_OPTIONS = [
+    { key: 'temp', label: 'Temperature' },
+    { key: 'rain', label: 'Rain chance' },
+    { key: 'precip', label: 'Precipitation' },
+    { key: 'wind', label: 'Wind speed' },
+] as const;
+type AxisKey = (typeof AXIS_OPTIONS)[number]['key'];
 const CHART_HEIGHT = 260;
 const COMPACT_CHART_HEIGHT = 150;
 // Room for the horizontal scrollbar so the vertical axis never overflows.
@@ -42,6 +49,7 @@ const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
     if (active && payload && payload.length > 0) {
         const precipitation: number | null | undefined = payload[0].payload?.precipitation;
         const chance: number | null | undefined = payload[0].payload?.rainChance;
+        const wind: number | null | undefined = payload[0].payload?.wind;
         return (
             <Box
                 sx={{
@@ -54,13 +62,16 @@ const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
                     {`Time: ${moment(label).format('ddd h:mm A')}`}
                 </Typography>
                 <Typography variant="caption" sx={{ color: TEMP_COLOR, display: 'block' }}>
-                    {`Temperature: ${payload[0].value}°F`}
+                    {`Temperature: ${payload[0].payload?.temperature}°F`}
                 </Typography>
                 <Typography variant="caption" sx={{ color: RAIN_COLOR, display: 'block' }}>
                     {`Rain chance: ${typeof chance === 'number' ? `${Math.round(chance)}%` : '—'}`}
                 </Typography>
                 <Typography variant="caption" sx={{ color: PRECIP_COLOR, display: 'block' }}>
                     {`Precipitation: ${typeof precipitation === 'number' ? `${precipitation.toFixed(2)} in` : '—'}`}
+                </Typography>
+                <Typography variant="caption" sx={{ color: WIND_COLOR, display: 'block' }}>
+                    {`Wind: ${typeof wind === 'number' ? `${Math.round(wind)} km/h` : '—'}`}
                 </Typography>
             </Box>
         );
@@ -111,6 +122,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         temperature: hourlyData.temperature_2m[index],
         precipitation: hourlyData.precipitation[index] ?? null,
         rainChance: hourlyData.precipitation_probability[index] ?? null,
+        wind: hourlyData.windspeed_10m[index] ?? null,
     }));
     const hourlyForSelected = allHourly.filter((point) => point.timestamp.slice(0, 10) === selectedDate);
     const chartWidth = allHourly.length * HOUR_WIDTH;
@@ -121,16 +133,24 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const nowInRange = !!nowPoint && nowStamp < moment(allHourly[allHourly.length - 1].timestamp).add(1, 'hour').format('YYYY-MM-DDTHH:00');
     const step = allHourly.length > 1 ? (chartWidth - 10) / (allHourly.length - 1) : HOUR_WIDTH;
 
+    const [visibleAxes, setVisibleAxes] = useState<Record<AxisKey, boolean>>({ temp: true, rain: true, precip: true, wind: true });
+    const [axisMenuAnchor, setAxisMenuAnchor] = useState<HTMLElement | null>(null);
+    const toggleAxis = (key: AxisKey) => setVisibleAxes((current) => ({ ...current, [key]: !current[key] }));
+    const shown = (element: React.ReactElement) => visibleAxes[element.key as AxisKey];
+    const yAxisWidth = AXIS_WIDTH * AXIS_OPTIONS.filter((option) => visibleAxes[option.key]).length;
+
     const yAxes = [
         <YAxis tickMargin={8} key="temp" yAxisId="temp" width={AXIS_WIDTH} domain={[0, 120]} unit="°" stroke={TEMP_COLOR} label={{ value: 'Temperature (°F)', angle: -90, position: 'insideLeft', offset: 8, style: { textAnchor: 'middle', fill: TEMP_COLOR, fontSize: 11 } }} tick={{ fill: TEMP_COLOR, fontSize: 11 }} />,
         <YAxis tickMargin={8} key="rain" yAxisId="rain" width={AXIS_WIDTH} domain={[0, 100]} unit="%" stroke={RAIN_COLOR} label={{ value: 'Rain chance (%)', angle: -90, position: 'insideLeft', offset: 8, style: { textAnchor: 'middle', fill: RAIN_COLOR, fontSize: 11 } }} tick={{ fill: RAIN_COLOR, fontSize: 11 }} />,
         <YAxis tickMargin={8} key="precip" yAxisId="precip" width={AXIS_WIDTH} domain={[0, (max: number) => Math.max(0.5, Math.ceil(max * 10) / 10)]} unit='"' stroke={PRECIP_COLOR} label={{ value: 'Precipitation (in)', angle: -90, position: 'insideLeft', offset: 8, style: { textAnchor: 'middle', fill: PRECIP_COLOR, fontSize: 11 } }} tick={{ fill: PRECIP_COLOR, fontSize: 11 }} />,
+        <YAxis tickMargin={8} key="wind" yAxisId="wind" width={AXIS_WIDTH} domain={[0, (max: number) => Math.max(20, Math.ceil(max / 10) * 10)]} stroke={WIND_COLOR} label={{ value: 'Wind (km/h)', angle: -90, position: 'insideLeft', offset: 8, style: { textAnchor: 'middle', fill: WIND_COLOR, fontSize: 11 } }} tick={{ fill: WIND_COLOR, fontSize: 11 }} />,
     ];
     // The pinned axis chart draws no lines; it only needs them to compute the same scales.
     const chartLines = (invisible: boolean) => [
         <Line key="temp" yAxisId="temp" type="monotone" dataKey="temperature" stroke={TEMP_COLOR} strokeWidth={3} dot={false} activeDot={invisible ? false : { r: 5 }} strokeOpacity={invisible ? 0 : 1} isAnimationActive={false} />,
         <Line key="rain" yAxisId="rain" type="monotone" dataKey="rainChance" stroke={RAIN_COLOR} strokeWidth={2} dot={false} activeDot={invisible ? false : { r: 4 }} strokeOpacity={invisible ? 0 : 1} isAnimationActive={false} />,
         <Line key="precip" yAxisId="precip" type="monotone" dataKey="precipitation" stroke={PRECIP_COLOR} strokeWidth={2} dot={false} activeDot={invisible ? false : { r: 4 }} strokeOpacity={invisible ? 0 : 1} isAnimationActive={false} />,
+        <Line key="wind" yAxisId="wind" type="monotone" dataKey="wind" stroke={WIND_COLOR} strokeWidth={2} dot={false} activeDot={invisible ? false : { r: 4 }} strokeOpacity={invisible ? 0 : 1} isAnimationActive={false} />,
     ];
 
     // Vertical wheel over the hourly chart scrolls it through time: up is forward, down is back.
@@ -256,14 +276,28 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                             <span className={styles.nowDot} aria-hidden="true" />
                             Today &amp; Now
                         </Button>
+                        <Button size="small" className={styles.axesButton} onClick={(event) => setAxisMenuAnchor(event.currentTarget)} aria-haspopup="menu" aria-expanded={!!axisMenuAnchor} aria-label="Choose y axes">
+                            Y axes ▾
+                        </Button>
+                        <Menu anchorEl={axisMenuAnchor} open={!!axisMenuAnchor} onClose={() => setAxisMenuAnchor(null)}>
+                            {AXIS_OPTIONS.map((option) => (
+                                <MenuItem key={option.key} dense onClick={() => toggleAxis(option.key)}>
+                                    <FormControlLabel
+                                        control={<Checkbox size="small" checked={visibleAxes[option.key]} tabIndex={-1} disableRipple />}
+                                        label={option.label}
+                                        onClick={(event) => event.preventDefault()}
+                                    />
+                                </MenuItem>
+                            ))}
+                        </Menu>
                     </Box>
                     <Box sx={{ display: 'flex' }}>
-                        <Box aria-hidden="true" sx={{ flex: 'none', width: Y_AXIS_WIDTH, height: chartHeight }}>
-                            <LineChart width={Y_AXIS_WIDTH} height={chartHeight} data={allHourly} margin={{ left: 0, right: 0 }}>
+                        <Box aria-hidden="true" sx={{ flex: 'none', width: yAxisWidth, height: chartHeight }}>
+                            {yAxisWidth > 0 && <LineChart width={yAxisWidth} height={chartHeight} data={allHourly} margin={{ left: 0, right: 0 }}>
                                 <XAxis dataKey="timestamp" tick={false} axisLine={false} tickLine={false} />
-                                {yAxes}
-                                {chartLines(true)}
-                            </LineChart>
+                                {yAxes.filter(shown)}
+                                {chartLines(true).filter(shown)}
+                            </LineChart>}
                         </Box>
                         <Box
                             ref={scrollRef}
@@ -284,7 +318,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                                 {nowInRange && nowPoint && (
                                     <ReferenceLine yAxisId="temp" x={nowPoint.timestamp} stroke="#d32f2f" strokeWidth={2} strokeDasharray="4 3" label={{ value: 'Now', position: 'insideTopRight', fontSize: 11, fontWeight: 700, fill: '#d32f2f' }} />
                                 )}
-                                {chartLines(false)}
+                                {chartLines(false).filter(shown)}
                             </LineChart>
                         </Box>
                     </Box>
