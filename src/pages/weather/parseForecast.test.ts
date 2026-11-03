@@ -181,7 +181,12 @@ describe('parseForecast', () => {
     const { daily } = buildOpenMeteoResponse(1, 0)
 
     it('is empty when missing or malformed', () => {
-      const empty = { time: [], temperature_2m: [] }
+      const empty = {
+        time: [],
+        temperature_2m: [],
+        precipitation: [],
+        precipitation_probability: [],
+      }
       expect(parseForecast({ daily }).hourly).toEqual(empty)
       expect(parseForecast({ daily, hourly: null }).hourly).toEqual(empty)
       expect(
@@ -202,11 +207,15 @@ describe('parseForecast', () => {
             '2026-03-10T01:00',
           ],
           temperature_2m: [53, 51, 99, NaN, 54, 77],
+          precipitation: [0.3, 0.1, 9, 9, null, 7],
+          precipitation_probability: [30, 10, 99, 99, 'x', 70],
         },
       })
       expect(hourly).toEqual({
         time: ['2026-03-10T01:00', '2026-03-10T03:00', '2026-03-10T04:00'],
         temperature_2m: [51, 53, 54],
+        precipitation: [0.1, 0.3, null],
+        precipitation_probability: [10, 30, null],
       })
     })
 

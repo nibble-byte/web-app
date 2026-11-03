@@ -11,9 +11,12 @@ export interface DailyForecast {
 }
 
 // Parallel arrays holding only valid points, so `time[i]` always matches `temperature_2m[i]`.
+// `precipitation` is in inches and `precipitation_probability` a percentage; both are null when the hour has no reading.
 export interface HourlyForecast {
   time: string[]
   temperature_2m: number[]
+  precipitation: (number | null)[]
+  precipitation_probability: (number | null)[]
 }
 
 export interface ParsedForecast {
@@ -122,21 +125,40 @@ const parseDaily = (
 // Builds the hourly series, keeping only points with a valid timestamp and finite temperature,
 // sorted and de-duplicated so each time stays aligned with its temperature.
 const parseHourly = (hourly: unknown): HourlyForecast => {
-  const empty = { time: [], temperature_2m: [] }
+  const empty = {
+    time: [],
+    temperature_2m: [],
+    precipitation: [],
+    precipitation_probability: [],
+  }
   if (!isRecord(hourly) || !Array.isArray(hourly.time)) return empty
   const temperatures = columnOf(hourly, 'temperature_2m')
+  const precipitation = columnOf(hourly, 'precipitation')
+  const probability = columnOf(hourly, 'precipitation_probability')
 
-  const points: { time: string; temperature: number }[] = []
+  const points: {
+    time: string
+    temperature: number
+    precipitation: number | null
+    probability: number | null
+  }[] = []
   hourly.time.forEach((time, i) => {
     const temperature = finiteOrNull(temperatures[i])
     if (isValidTimestamp(time) && temperature !== null) {
-      points.push({ time, temperature })
+      points.push({
+        time,
+        temperature,
+        precipitation: finiteOrNull(precipitation[i]),
+        probability: finiteOrNull(probability[i]),
+      })
     }
   })
   const sorted = withoutDuplicateTimes(points.sort(byTime))
   return {
     time: sorted.map((point) => point.time),
     temperature_2m: sorted.map((point) => point.temperature),
+    precipitation: sorted.map((point) => point.precipitation),
+    precipitation_probability: sorted.map((point) => point.probability),
   }
 }
 
@@ -167,15 +189,33 @@ export const mergeForecasts = (
     .sort(byTime)
     .map((day, index) => ({ ...day, index }))
 
-  const points = new Map<string, number>()
+  const points = new Map<
+    string,
+    {
+      temperature: number
+      precipitation: number | null
+      probability: number | null
+    }
+  >()
   for (const hourly of [additional.hourly, existing.hourly]) {
-    hourly.time.forEach((time, i) => points.set(time, hourly.temperature_2m[i]))
+    hourly.time.forEach((time, i) =>
+      points.set(time, {
+        temperature: hourly.temperature_2m[i],
+        precipitation: hourly.precipitation[i],
+        probability: hourly.precipitation_probability[i],
+      })
+    )
   }
   const times = [...points.keys()].sort()
 
   return {
     dailyForecasts: days,
-    hourly: { time: times, temperature_2m: times.map((t) => points.get(t)!) },
+    hourly: {
+      time: times,
+      temperature_2m: times.map((t) => points.get(t)!.temperature),
+      precipitation: times.map((t) => points.get(t)!.precipitation),
+      precipitation_probability: times.map((t) => points.get(t)!.probability),
+    },
     omittedRecords: existing.omittedRecords + additional.omittedRecords,
   }
 }

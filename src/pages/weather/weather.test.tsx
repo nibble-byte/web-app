@@ -262,7 +262,9 @@ describe('Weather', () => {
       )
       expect(screen.getAllByLabelText('Unavailable').length).toBeGreaterThan(0)
       expect(document.body).not.toHaveTextContent(/NaN|undefined|Invalid date/)
-      expect(screen.queryByText('0%')).not.toBeInTheDocument()
+      expect(
+        screen.queryByText('0%', { ignore: 'svg *, script, style' })
+      ).not.toBeInTheDocument()
     })
 
     it('shows the forecast without a notice when everything is available', async () => {

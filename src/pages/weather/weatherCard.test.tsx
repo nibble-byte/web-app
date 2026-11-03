@@ -17,11 +17,18 @@ const forecast = (overrides: Partial<DailyForecast> = {}): DailyForecast => ({
   ...overrides,
 })
 
-const noHourly: HourlyForecast = { time: [], temperature_2m: [] }
+const noHourly: HourlyForecast = {
+  time: [],
+  temperature_2m: [],
+  precipitation: [],
+  precipitation_probability: [],
+}
 
 const hourlyFor = (date: string): HourlyForecast => ({
   time: ['00', '01', '02'].map((hour) => `${date}T${hour}:00`),
   temperature_2m: [50, 51, 52],
+  precipitation: [0, 0.02, null],
+  precipitation_probability: [0, 35, null],
 })
 
 const onClose = vi.fn()
@@ -152,6 +159,8 @@ describe('WeatherCard', () => {
           )
         ),
         temperature_2m: Array.from({ length: 48 }, () => 50),
+        precipitation: Array.from({ length: 48 }, () => 0),
+        precipitation_probability: Array.from({ length: 48 }, () => 0),
       }
 
       const renderScrollable = (onSelectDate: (date: string) => void) => {

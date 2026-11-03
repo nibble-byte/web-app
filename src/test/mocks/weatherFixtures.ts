@@ -25,6 +25,8 @@ export const buildOpenMeteoResponse = (days = DAYS, startIndex = 0) => ({
         `${day(startIndex + Math.floor(i / HOURS))}T${String(i % HOURS).padStart(2, '0')}:00`
     ),
     temperature_2m: range(days * HOURS, (i) => 50 + (i % HOURS)),
+    precipitation: range(days * HOURS, (i) => (i % HOURS) / 100),
+    precipitation_probability: range(days * HOURS, (i) => (i % HOURS) * 4),
   },
 })
 
