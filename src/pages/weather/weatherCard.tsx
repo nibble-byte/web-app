@@ -10,7 +10,8 @@ import {
     XAxis,
     YAxis,
     Tooltip,
-    ReferenceLine
+    ReferenceLine,
+    ReferenceDot
 } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -27,11 +28,12 @@ interface WeatherCardProps {
 }
 
 const HOUR_WIDTH = 44;
-const AXIS_WIDTH = 56;
 const TEMP_COLOR = '#187a72';
 const RAIN_COLOR = '#1976d2';
 const PRECIP_COLOR = '#8e44ad';
 const WIND_COLOR = '#ef8a17';
+const AXIS_COLORS = { temp: TEMP_COLOR, rain: RAIN_COLOR, precip: PRECIP_COLOR, wind: WIND_COLOR };
+const MEASURE_FIELDS = { temp: 'temperature', rain: 'rainChance', precip: 'precipitation', wind: 'wind' } as const;
 const AXIS_OPTIONS = [
     { key: 'temp', label: 'Temperature' },
     { key: 'rain', label: 'Rain chance' },
@@ -44,12 +46,48 @@ const COMPACT_CHART_HEIGHT = 150;
 // Room for the horizontal scrollbar so the vertical axis never overflows.
 const SCROLLBAR_ALLOWANCE = 16;
 
-const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
+type HourlyPoint = {
+    timestamp: string;
+    ts: number;
+    time: string;
+    temperature: number;
+    precipitation: number | null;
+    rainChance: number | null;
+    wind: number | null;
+};
+
+// Linear interpolation of every measure at `at` (ms); a measure is null when either neighbouring hour has no reading.
+export const interpolateAt = (points: HourlyPoint[], at: number): HourlyPoint | null => {
+    if (points.length === 0 || at < points[0].ts || at > points[points.length - 1].ts) return null;
+    let after = points.findIndex((point) => point.ts >= at);
+    if (after < 0) after = points.length - 1;
+    const b = points[after];
+    const a = points[Math.max(0, after - (b.ts === at ? 0 : 1))];
+    const ratio = b.ts === a.ts ? 0 : (at - a.ts) / (b.ts - a.ts);
+    const blend = (x: number | null, y: number | null) => (x === null || y === null ? null : x + (y - x) * ratio);
+    return {
+        timestamp: '',
+        ts: at,
+        time: moment(at).format('h:mm A'),
+        temperature: blend(a.temperature, b.temperature) as number,
+        precipitation: blend(a.precipitation, b.precipitation),
+        rainChance: blend(a.rainChance, b.rainChance),
+        wind: blend(a.wind, b.wind),
+    };
+};
+
+// Horizontal distance (px) within which the hover shows the interpolated "now" values.
+const NOW_HOVER_PX = 10;
+
+const CustomTooltip: React.FC<any> = ({ active, payload, label, nowPoint, hoveringNow: nearNow }) => {
     const theme = useTheme();
     if (active && payload && payload.length > 0) {
-        const precipitation: number | null | undefined = payload[0].payload?.precipitation;
-        const chance: number | null | undefined = payload[0].payload?.rainChance;
-        const wind: number | null | undefined = payload[0].payload?.wind;
+        const hoveringNow = !!nowPoint && !!nearNow;
+        const source: HourlyPoint = hoveringNow ? nowPoint : payload[0].payload;
+        const precipitation = source?.precipitation;
+        const chance = source?.rainChance;
+        const wind = source?.wind;
+        label = hoveringNow ? nowPoint.ts : label;
         return (
             <Box
                 sx={{
@@ -59,24 +97,36 @@ const CustomTooltip: React.FC<any> = ({ active, payload, label }) => {
                 }}
             >
                 <Typography variant="caption" sx={{ color: theme.palette.text.primary }}>
-                    {`Time: ${moment(label).format('ddd h:mm A')}`}
+                    {hoveringNow ? `Now: ${moment(label).format('ddd h:mm A')}` : `Time: ${moment(label).format('ddd h:mm A')}`}
                 </Typography>
-                <Typography variant="caption" sx={{ color: TEMP_COLOR, display: 'block' }}>
-                    {`Temperature: ${payload[0].payload?.temperature}°F`}
+                <Typography variant="caption" sx={{ color: TEMP_COLOR, display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600 }}>
+                    <span className={styles.swatch} style={{ background: TEMP_COLOR }} aria-hidden="true" />
+                    {`Temperature: ${typeof source?.temperature === 'number' ? (hoveringNow ? source.temperature.toFixed(1) : source.temperature) : '—'}°F`}
                 </Typography>
-                <Typography variant="caption" sx={{ color: RAIN_COLOR, display: 'block' }}>
+                <Typography variant="caption" sx={{ color: RAIN_COLOR, display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600 }}>
+                    <span className={styles.swatch} style={{ background: RAIN_COLOR }} aria-hidden="true" />
                     {`Rain chance: ${typeof chance === 'number' ? `${Math.round(chance)}%` : '—'}`}
                 </Typography>
-                <Typography variant="caption" sx={{ color: PRECIP_COLOR, display: 'block' }}>
+                <Typography variant="caption" sx={{ color: PRECIP_COLOR, display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600 }}>
+                    <span className={styles.swatch} style={{ background: PRECIP_COLOR }} aria-hidden="true" />
                     {`Precipitation: ${typeof precipitation === 'number' ? `${precipitation.toFixed(2)} in` : '—'}`}
                 </Typography>
-                <Typography variant="caption" sx={{ color: WIND_COLOR, display: 'block' }}>
+                <Typography variant="caption" sx={{ color: WIND_COLOR, display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600 }}>
+                    <span className={styles.swatch} style={{ background: WIND_COLOR }} aria-hidden="true" />
                     {`Wind: ${typeof wind === 'number' ? `${Math.round(wind)} km/h` : '—'}`}
                 </Typography>
             </Box>
         );
     }
     return null;
+};
+
+// Vertical hover guide: follows the hourly point, but snaps to the "Now" line while it is being hovered.
+const HoverCursor: React.FC<any> = ({ points, nowX }) => {
+    const theme = useTheme();
+    if (!points || points.length < 2) return null;
+    const x = nowX ?? points[0].x;
+    return <line x1={x} x2={x} y1={points[0].y} y2={points[1].y} stroke={nowX === null ? theme.palette.text.disabled : '#d32f2f'} strokeWidth={nowX === null ? 1 : 2} pointerEvents="none" />;
 };
 
 const Unavailable: React.FC = () => <span role="img" aria-label="Unavailable">—</span>;
@@ -116,8 +166,9 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const isTodaySelected = selectedDate === today;
 
     // Every loaded hourly point, so the chart can scroll across days.
-    const allHourly = hourlyData.time.map((hourTime, index) => ({
+    const allHourly: HourlyPoint[] = hourlyData.time.map((hourTime, index) => ({
         timestamp: hourTime,
+        ts: moment(hourTime).valueOf(),
         time: moment(hourTime).format('h:mm A'),
         temperature: hourlyData.temperature_2m[index],
         precipitation: hourlyData.precipitation[index] ?? null,
@@ -127,30 +178,42 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const hourlyForSelected = allHourly.filter((point) => point.timestamp.slice(0, 10) === selectedDate);
     const chartWidth = allHourly.length * HOUR_WIDTH;
     const chartHeight = mobile ? COMPACT_CHART_HEIGHT : CHART_HEIGHT;
-    // Latest loaded hour that has already started, marked as "now" on the chart.
-    const nowStamp = moment().format('YYYY-MM-DDTHH:00');
-    const nowPoint = allHourly.filter((point) => point.timestamp <= nowStamp).pop();
-    const nowInRange = !!nowPoint && nowStamp < moment(allHourly[allHourly.length - 1].timestamp).add(1, 'hour').format('YYYY-MM-DDTHH:00');
-    const step = allHourly.length > 1 ? (chartWidth - 10) / (allHourly.length - 1) : HOUR_WIDTH;
+    // The current moment, refreshed every minute, drawn at its exact position between hours.
+    const [nowMs, setNowMs] = useState(() => Date.now());
+    useEffect(() => {
+        const timer = setInterval(() => setNowMs(Date.now()), 60000);
+        return () => clearInterval(timer);
+    }, []);
+    const firstTs = allHourly[0]?.ts ?? 0;
+    const lastTs = allHourly[allHourly.length - 1]?.ts ?? 0;
+    const pxPerMs = lastTs > firstTs ? (chartWidth - 10) / (lastTs - firstTs) : 0;
+    const xOf = (ts: number) => (ts - firstTs) * pxPerMs;
+    const nowPoint = interpolateAt(allHourly, nowMs);
+    const nowX = xOf(nowMs);
+    // True while the pointer is on the "Now" line, so the tooltip shows the interpolated current values.
+    const [hoverNow, setHoverNow] = useState(false);
+    const handleChartMove = (event: React.MouseEvent<HTMLDivElement>) => {
+        const el = event.currentTarget;
+        const x = event.clientX - el.getBoundingClientRect().left + el.scrollLeft;
+        setHoverNow(Math.abs(x - nowX) <= NOW_HOVER_PX);
+    };
 
     const [visibleAxes, setVisibleAxes] = useState<Record<AxisKey, boolean>>({ temp: true, rain: true, precip: true, wind: true });
     const [axisMenuAnchor, setAxisMenuAnchor] = useState<HTMLElement | null>(null);
     const toggleAxis = (key: AxisKey) => setVisibleAxes((current) => ({ ...current, [key]: !current[key] }));
     const shown = (element: React.ReactElement) => visibleAxes[element.key as AxisKey];
-    const yAxisWidth = AXIS_WIDTH * AXIS_OPTIONS.filter((option) => visibleAxes[option.key]).length;
 
     const yAxes = [
-        <YAxis tickMargin={8} key="temp" yAxisId="temp" width={AXIS_WIDTH} domain={[0, 120]} unit="°" stroke={TEMP_COLOR} label={{ value: 'Temperature (°F)', angle: -90, position: 'insideLeft', offset: 8, style: { textAnchor: 'middle', fill: TEMP_COLOR, fontSize: 11 } }} tick={{ fill: TEMP_COLOR, fontSize: 11 }} />,
-        <YAxis tickMargin={8} key="rain" yAxisId="rain" width={AXIS_WIDTH} domain={[0, 100]} unit="%" stroke={RAIN_COLOR} label={{ value: 'Rain chance (%)', angle: -90, position: 'insideLeft', offset: 8, style: { textAnchor: 'middle', fill: RAIN_COLOR, fontSize: 11 } }} tick={{ fill: RAIN_COLOR, fontSize: 11 }} />,
-        <YAxis tickMargin={8} key="precip" yAxisId="precip" width={AXIS_WIDTH} domain={[0, (max: number) => Math.max(0.5, Math.ceil(max * 10) / 10)]} unit='"' stroke={PRECIP_COLOR} label={{ value: 'Precipitation (in)', angle: -90, position: 'insideLeft', offset: 8, style: { textAnchor: 'middle', fill: PRECIP_COLOR, fontSize: 11 } }} tick={{ fill: PRECIP_COLOR, fontSize: 11 }} />,
-        <YAxis tickMargin={8} key="wind" yAxisId="wind" width={AXIS_WIDTH} domain={[0, (max: number) => Math.max(20, Math.ceil(max / 10) * 10)]} stroke={WIND_COLOR} label={{ value: 'Wind (km/h)', angle: -90, position: 'insideLeft', offset: 8, style: { textAnchor: 'middle', fill: WIND_COLOR, fontSize: 11 } }} tick={{ fill: WIND_COLOR, fontSize: 11 }} />,
+        <YAxis key="temp" yAxisId="temp" domain={[0, 120]} hide />,
+        <YAxis key="rain" yAxisId="rain" domain={[0, 100]} hide />,
+        <YAxis key="precip" yAxisId="precip" domain={[0, (max: number) => Math.max(0.5, Math.ceil(max * 10) / 10)]} hide />,
+        <YAxis key="wind" yAxisId="wind" domain={[0, (max: number) => Math.max(20, Math.ceil(max / 10) * 10)]} hide />,
     ];
-    // The pinned axis chart draws no lines; it only needs them to compute the same scales.
-    const chartLines = (invisible: boolean) => [
-        <Line key="temp" yAxisId="temp" type="monotone" dataKey="temperature" stroke={TEMP_COLOR} strokeWidth={3} dot={false} activeDot={invisible ? false : { r: 5 }} strokeOpacity={invisible ? 0 : 1} isAnimationActive={false} />,
-        <Line key="rain" yAxisId="rain" type="monotone" dataKey="rainChance" stroke={RAIN_COLOR} strokeWidth={2} dot={false} activeDot={invisible ? false : { r: 4 }} strokeOpacity={invisible ? 0 : 1} isAnimationActive={false} />,
-        <Line key="precip" yAxisId="precip" type="monotone" dataKey="precipitation" stroke={PRECIP_COLOR} strokeWidth={2} dot={false} activeDot={invisible ? false : { r: 4 }} strokeOpacity={invisible ? 0 : 1} isAnimationActive={false} />,
-        <Line key="wind" yAxisId="wind" type="monotone" dataKey="wind" stroke={WIND_COLOR} strokeWidth={2} dot={false} activeDot={invisible ? false : { r: 4 }} strokeOpacity={invisible ? 0 : 1} isAnimationActive={false} />,
+    const chartLines = () => [
+        <Line key="temp" yAxisId="temp" type="monotone" dataKey="temperature" stroke={TEMP_COLOR} strokeWidth={3} dot={false} activeDot={hoverNow ? false : { r: 5 }} isAnimationActive={false} />,
+        <Line key="rain" yAxisId="rain" type="monotone" dataKey="rainChance" stroke={RAIN_COLOR} strokeWidth={2} dot={false} activeDot={hoverNow ? false : { r: 4 }} isAnimationActive={false} />,
+        <Line key="precip" yAxisId="precip" type="monotone" dataKey="precipitation" stroke={PRECIP_COLOR} strokeWidth={2} dot={false} activeDot={hoverNow ? false : { r: 4 }} isAnimationActive={false} />,
+        <Line key="wind" yAxisId="wind" type="monotone" dataKey="wind" stroke={WIND_COLOR} strokeWidth={2} dot={false} activeDot={hoverNow ? false : { r: 4 }} isAnimationActive={false} />,
     ];
 
     // Vertical wheel over the hourly chart scrolls it through time: up is forward, down is back.
@@ -171,8 +234,9 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     // Date of the hourly point in the middle of the visible chart area.
     const dateAtCenter = (el: HTMLDivElement) => {
         const x = el.scrollLeft + el.clientWidth / 2;
-        const index = Math.min(allHourly.length - 1, Math.max(0, Math.round(x / step)));
-        return allHourly[index]?.timestamp.slice(0, 10);
+        if (allHourly.length === 0) return undefined;
+        const ts = pxPerMs > 0 ? firstTs + x / pxPerMs : firstTs;
+        return moment(Math.min(lastTs, Math.max(firstTs, ts))).format('YYYY-MM-DD');
     };
 
     // Centers the selected day in the chart when it was chosen elsewhere (or the data shifted).
@@ -185,7 +249,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         if (!el || el.clientWidth === 0 || dateAtCenter(el) === selectedDate) return;
         const noon = allHourly.findIndex((point) => point.timestamp.startsWith(`${selectedDate}T12`));
         const target = noon >= 0 ? noon : allHourly.findIndex((point) => point.timestamp.startsWith(selectedDate));
-        if (target >= 0) el.scrollLeft = target * step - el.clientWidth / 2;
+        if (target >= 0) el.scrollLeft = xOf(allHourly[target].ts) - el.clientWidth / 2;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedDate, firstHour, hourlyForSelected.length > 0]);
 
@@ -193,13 +257,12 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const jumpToNow = () => {
         const el = scrollRef.current;
         if (!nowPoint) return;
-        const todayDate = nowPoint.timestamp.slice(0, 10);
+        const todayDate = moment(nowMs).format('YYYY-MM-DD');
         if (todayDate !== selectedDate) {
             scrollSelectedDate.current = todayDate;
             onSelectDate?.(todayDate);
         }
-        const index = allHourly.indexOf(nowPoint);
-        if (el) el.scrollLeft = index * step - el.clientWidth / 2;
+        if (el) el.scrollLeft = nowX - el.clientWidth / 2;
     };
 
     // Selects the day under the center of the chart as the user scrolls.
@@ -272,19 +335,19 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                 <Box className={styles.hourlySection}>
                     <Box className={styles.chartHeader}>
                         <Typography className={styles.chartTitle}>Hourly Temperature</Typography>
-                        <Button size="small" className={styles.nowButton} onClick={jumpToNow} disabled={!nowInRange || !nowPoint} aria-label="Jump to today and now">
+                        <Button size="small" className={styles.nowButton} onClick={jumpToNow} disabled={!nowPoint} aria-label="Jump to today and now">
                             <span className={styles.nowDot} aria-hidden="true" />
                             Today &amp; Now
                         </Button>
-                        <Button size="small" className={styles.axesButton} onClick={(event) => setAxisMenuAnchor(event.currentTarget)} aria-haspopup="menu" aria-expanded={!!axisMenuAnchor} aria-label="Choose y axes">
-                            Y axes ▾
+                        <Button size="small" className={styles.axesButton} onClick={(event) => setAxisMenuAnchor(event.currentTarget)} aria-haspopup="menu" aria-expanded={!!axisMenuAnchor} aria-label="Choose lines">
+                            Lines ▾
                         </Button>
                         <Menu anchorEl={axisMenuAnchor} open={!!axisMenuAnchor} onClose={() => setAxisMenuAnchor(null)}>
                             {AXIS_OPTIONS.map((option) => (
                                 <MenuItem key={option.key} dense onClick={() => toggleAxis(option.key)}>
                                     <FormControlLabel
-                                        control={<Checkbox size="small" checked={visibleAxes[option.key]} tabIndex={-1} disableRipple />}
-                                        label={option.label}
+                                        control={<Checkbox size="small" sx={{ color: AXIS_COLORS[option.key], '&.Mui-checked': { color: AXIS_COLORS[option.key] } }} checked={visibleAxes[option.key]} tabIndex={-1} disableRipple />}
+                                        label={<><span className={styles.swatch} style={{ background: AXIS_COLORS[option.key] }} aria-hidden="true" />{option.label}</>}
                                         onClick={(event) => event.preventDefault()}
                                     />
                                 </MenuItem>
@@ -292,33 +355,34 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                         </Menu>
                     </Box>
                     <Box sx={{ display: 'flex' }}>
-                        <Box aria-hidden="true" sx={{ flex: 'none', width: yAxisWidth, height: chartHeight }}>
-                            {yAxisWidth > 0 && <LineChart width={yAxisWidth} height={chartHeight} data={allHourly} margin={{ left: 0, right: 0 }}>
-                                <XAxis dataKey="timestamp" tick={false} axisLine={false} tickLine={false} />
-                                {yAxes.filter(shown)}
-                                {chartLines(true).filter(shown)}
-                            </LineChart>}
-                        </Box>
                         <Box
                             ref={scrollRef}
                             role="region"
                             aria-label="Hourly temperature, scroll to change day"
                             tabIndex={0}
                             onScroll={handleScroll}
+                            onMouseMove={handleChartMove}
+                            onMouseLeave={() => setHoverNow(false)}
                             sx={{ flex: 1, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: chartHeight + SCROLLBAR_ALLOWANCE }}
                         >
                             <LineChart width={chartWidth} height={chartHeight} data={allHourly} margin={{ left: 0, right: 10 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-                                <XAxis dataKey="timestamp" interval={2} tickFormatter={(value) => moment(value).format('h A')} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
-                                {yAxes.map((axis) => React.cloneElement(axis, { hide: true, width: 0 }))}
-                                <Tooltip content={<CustomTooltip />} />
+                                <XAxis dataKey="ts" type="number" scale="time" domain={[firstTs, lastTs]} ticks={allHourly.filter((_, index) => index % 2 === 0).map((point) => point.ts)} tickFormatter={(value) => moment(value).format('h A')} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
+                                {yAxes}
+                                <Tooltip content={<CustomTooltip nowPoint={nowPoint} hoveringNow={hoverNow} />} cursor={<HoverCursor nowX={hoverNow && nowPoint ? nowX : null} />} />
                                 {allHourly.filter((point) => point.timestamp.slice(11, 13) === '00').map((point) => (
-                                    <ReferenceLine yAxisId="temp" key={point.timestamp} x={point.timestamp} stroke={theme.palette.divider} label={{ value: moment(point.timestamp).format('ddd M/D'), position: 'insideTopLeft', fontSize: 11, fill: theme.palette.text.secondary }} />
+                                    <ReferenceLine yAxisId="temp" key={point.timestamp} x={point.ts} stroke={theme.palette.divider} label={{ value: moment(point.timestamp).format('ddd M/D'), position: 'insideTopLeft', fontSize: 11, fill: theme.palette.text.secondary }} />
                                 ))}
-                                {nowInRange && nowPoint && (
-                                    <ReferenceLine yAxisId="temp" x={nowPoint.timestamp} stroke="#d32f2f" strokeWidth={2} strokeDasharray="4 3" label={{ value: 'Now', position: 'insideTopRight', fontSize: 11, fontWeight: 700, fill: '#d32f2f' }} />
+                                {nowPoint && (
+                                    <ReferenceLine yAxisId="temp" x={nowMs} stroke="#d32f2f" strokeWidth={2} strokeDasharray="4 3" label={{ value: 'Now', position: 'insideTopRight', fontSize: 11, fontWeight: 700, fill: '#d32f2f' }} />
                                 )}
-                                {chartLines(false).filter(shown)}
+                                {chartLines().filter(shown)}
+                                {nowPoint && AXIS_OPTIONS.filter((option) => visibleAxes[option.key]).map((option) => {
+                                    const value = nowPoint[MEASURE_FIELDS[option.key]];
+                                    return typeof value === 'number' ? (
+                                        <ReferenceDot key={`now-${option.key}`} yAxisId={option.key} x={nowMs} y={value} r={5} fill={AXIS_COLORS[option.key]} stroke="#fff" strokeWidth={2} ifOverflow="visible" />
+                                    ) : null;
+                                })}
                             </LineChart>
                         </Box>
                     </Box>

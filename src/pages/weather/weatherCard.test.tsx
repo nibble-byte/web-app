@@ -1,6 +1,6 @@
 import { fireEvent, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import WeatherCard from './weatherCard'
+import WeatherCard, { interpolateAt } from './weatherCard'
 import { DailyForecast, HourlyForecast } from './parseForecast'
 import { renderWithProviders } from '../../test/renderWithProviders'
 
@@ -136,6 +136,31 @@ describe('WeatherCard', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  describe('interpolateAt', () => {
+    const point = (hour: number, temperature: number, rain: number | null) => ({
+      timestamp: `2026-03-10T0${hour}:00`,
+      ts: new Date(2026, 2, 10, hour).getTime(),
+      time: '',
+      temperature,
+      precipitation: null,
+      rainChance: rain,
+      wind: null,
+    })
+    const points = [point(1, 50, 10), point(2, 60, null), point(3, 70, 30)]
+
+    it('blends between the surrounding hours by the minute', () => {
+      const at = new Date(2026, 2, 10, 1, 30).getTime()
+      expect(interpolateAt(points, at)?.temperature).toBeCloseTo(55)
+      expect(interpolateAt(points, at)?.rainChance).toBeNull()
+    })
+
+    it('returns the exact reading on the hour and null outside the data', () => {
+      const on = new Date(2026, 2, 10, 3).getTime()
+      expect(interpolateAt(points, on)?.temperature).toBe(70)
+      expect(interpolateAt(points, on - 3 * 3600000)).toBeNull()
+    })
+  })
+
   describe('jump to today and now', () => {
     const jump = () =>
       screen.getByRole('button', { name: 'Jump to today and now' })
@@ -148,11 +173,16 @@ describe('WeatherCard', () => {
         <WeatherCard
           forecastData={forecast()}
           hourlyData={{
-            time: ['2026-03-10T23:00', '2026-03-11T00:00', '2026-03-11T01:00'],
-            temperature_2m: [50, 51, 52],
-            precipitation: [0, 0, 0],
-            precipitation_probability: [0, 0, 0],
-            windspeed_10m: [0, 0, 0],
+            time: [
+              '2026-03-10T23:00',
+              '2026-03-11T00:00',
+              '2026-03-11T01:00',
+              '2026-03-11T02:00',
+            ],
+            temperature_2m: [50, 51, 52, 53],
+            precipitation: [0, 0, 0, 0],
+            precipitation_probability: [0, 0, 0, 0],
+            windspeed_10m: [0, 0, 0, 0],
           }}
           onClose={onClose}
           onSelectDate={onSelectDate}
@@ -168,19 +198,16 @@ describe('WeatherCard', () => {
     })
   })
 
-  describe('y axis menu', () => {
-    const axisLabels = () =>
-      Array.from(
-        document.querySelectorAll('.recharts-yAxis .recharts-label')
-      ).map((node) => node.textContent)
+  describe('lines menu', () => {
+    const lineCount = () => document.querySelectorAll('.recharts-line').length
 
-    it('lets users turn each y axis on and off', async () => {
+    it('lets users turn each line on and off', async () => {
       const user = userEvent.setup()
       renderCard(forecast(), hourlyFor('2026-03-10'))
+      expect(lineCount()).toBe(4)
 
-      await user.click(screen.getByRole('button', { name: 'Choose y axes' }))
+      await user.click(screen.getByRole('button', { name: 'Choose lines' }))
       const rain = screen.getByRole('menuitem', { name: 'Rain chance' })
-      expect(rain).toBeInTheDocument()
       await user.click(rain)
       expect(
         screen.getByRole('checkbox', { name: 'Rain chance' })
@@ -188,12 +215,18 @@ describe('WeatherCard', () => {
       expect(
         screen.getByRole('checkbox', { name: 'Temperature' })
       ).toBeChecked()
-      expect(axisLabels()).not.toContain('Rain chance (%)')
+      expect(lineCount()).toBe(3)
 
       await user.click(rain)
       expect(
         screen.getByRole('checkbox', { name: 'Rain chance' })
       ).toBeChecked()
+      expect(lineCount()).toBe(4)
+    })
+
+    it('has no visible y axes', () => {
+      renderCard(forecast(), hourlyFor('2026-03-10'))
+      expect(document.querySelectorAll('.recharts-yAxis').length).toBe(0)
     })
   })
 

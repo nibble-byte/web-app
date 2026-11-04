@@ -296,3 +296,12 @@
   margin-bottom: 4px !important;
   font-size: 0.85rem !important;
 }
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 50%;
+  flex: none;
+}
