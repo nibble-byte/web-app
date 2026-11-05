@@ -216,6 +216,38 @@ const describeIssues = (
 }
 
 // Fetches only the archive for an explicit date range (YYYY-MM-DD, location-local), used to extend the timeline into the past.
+// Air quality comes from a separate endpoint and is optional: any failure just leaves the AQI column empty.
+const withAirQuality = async (
+  hourly: WeatherTable,
+  latitude: number,
+  longitude: number
+): Promise<WeatherTable> => {
+  const times = hourly.time
+  if (!Array.isArray(times) || times.length === 0) return hourly
+  try {
+    const payload = await fetchSource(
+      'forecast',
+      'https://air-quality-api.open-meteo.com/v1/air-quality?' +
+        new URLSearchParams({
+          latitude: latitude.toString(),
+          longitude: longitude.toString(),
+          hourly: 'us_aqi',
+          timezone: 'auto',
+          past_days: '10',
+          forecast_days: '7',
+        })
+    )
+    const table = readTable(payload, 'hourly')
+    const airTimes = table?.time
+    const values = table?.us_aqi
+    if (!Array.isArray(airTimes) || !Array.isArray(values)) return hourly
+    const byTime = new Map(airTimes.map((time, i) => [time, values[i]]))
+    return { ...hourly, us_aqi: times.map((time) => byTime.get(time) ?? null) }
+  } catch {
+    return hourly
+  }
+}
+
 export const getOpenMeteoHistory = async ({
   latitude,
   longitude,
@@ -339,9 +371,14 @@ const getOpenMeteoWeather = async ({
   }
 
   const locationDate = locationToday(payloads.forecast ?? payloads.historical)
+  const mergedHourly = mergeTables(
+    hourly.historical,
+    hourly.forecast,
+    locationDate
+  )
   return {
     daily: mergeTables(daily.historical, daily.forecast, locationDate),
-    hourly: mergeTables(hourly.historical, hourly.forecast, locationDate),
+    hourly: await withAirQuality(mergedHourly, latitude, longitude),
     issues,
   }
 }

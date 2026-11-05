@@ -240,7 +240,7 @@ describe('WeatherCard', () => {
       const user = userEvent.setup()
       renderCard(forecast(), hourlyFor('2026-03-10'))
       await user.click(screen.getByRole('button', { name: 'Choose lines' }))
-      expect(screen.getAllByRole('checkbox')).toHaveLength(13)
+      expect(screen.getAllByRole('checkbox')).toHaveLength(14)
       const humidity = screen.getByRole('checkbox', { name: 'Humidity' })
       expect(humidity).not.toBeChecked()
       await user.click(screen.getByRole('menuitem', { name: 'Humidity' }))

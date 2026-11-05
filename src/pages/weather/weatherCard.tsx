@@ -30,7 +30,7 @@ interface WeatherCardProps {
 const HOUR_WIDTH = 44;
 type MeasureKey =
     | 'temp' | 'rain' | 'precip' | 'wind'
-    | 'humidity' | 'dewpoint' | 'snow' | 'windDir' | 'gusts' | 'cloud' | 'pressure' | 'radiation' | 'visibility';
+    | 'humidity' | 'dewpoint' | 'snow' | 'windDir' | 'gusts' | 'cloud' | 'pressure' | 'radiation' | 'visibility' | 'aqi';
 
 type Measure = {
     key: MeasureKey;
@@ -63,6 +63,7 @@ const MEASURES: Measure[] = [
     { key: 'pressure', field: 'surface_pressure', label: 'Pressure', unit: ' hPa', color: '#6d4c41', decimals: 0, domain: ['auto', 'auto'] },
     { key: 'radiation', field: 'shortwave_radiation', label: 'Solar radiation', unit: ' W/m²', color: '#f9a825', decimals: 0, domain: [0, atLeast(100, 100)] },
     { key: 'visibility', field: 'visibility', label: 'Visibility', unit: ' mi', color: '#43a047', decimals: 1, domain: [0, atLeast(5, 5)], scale: 1 / 1609.344 },
+    { key: 'aqi', field: 'us_aqi', label: 'Air quality (US AQI)', unit: '', color: '#e91e63', decimals: 0, domain: [0, atLeast(100, 50)] },
 ];
 const MEASURE_BY_KEY = Object.fromEntries(MEASURES.map((measure) => [measure.key, measure])) as Record<MeasureKey, Measure>;
 const DEFAULT_VISIBLE = Object.fromEntries(MEASURES.map((measure) => [measure.key, !!measure.defaultOn])) as Record<MeasureKey, boolean>;

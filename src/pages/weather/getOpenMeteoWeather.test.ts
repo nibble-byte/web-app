@@ -15,6 +15,33 @@ describe('getOpenMeteoWeather', () => {
     vi.useRealTimers()
   })
 
+  it('adds US AQI aligned to the hourly times, and tolerates its failure', async () => {
+    const response = buildOpenMeteoResponse()
+    const routes = (air: () => Response) => [
+      { match: ARCHIVE, handler: () => jsonResponse(response) },
+      { match: FORECAST, handler: () => jsonResponse(response) },
+      { match: 'air-quality-api', handler: air },
+    ]
+    mockFetch(
+      routes(() =>
+        jsonResponse({
+          hourly: { time: ['2026-03-10T01:00'], us_aqi: [42] },
+        })
+      )
+    )
+    const withAqi = await getOpenMeteoWeather(location)
+    const aqi = withAqi.hourly.us_aqi as unknown[]
+    const times = withAqi.hourly.time as string[]
+    expect(aqi).toHaveLength(times.length)
+    expect(aqi[times.indexOf('2026-03-10T01:00')]).toBe(42)
+    expect(aqi[0]).toBeNull()
+
+    mockFetch(routes(() => jsonResponse({}, { status: 500 })))
+    const without = await getOpenMeteoWeather(location)
+    expect(without.hourly.us_aqi).toBeUndefined()
+    expect(without.issues).toEqual([])
+  })
+
   it('requests historical and forecast windows relative to today', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-03-15T12:00:00Z'))

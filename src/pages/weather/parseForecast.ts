@@ -21,6 +21,7 @@ export const EXTRA_HOURLY_FIELDS = [
   'surface_pressure',
   'shortwave_radiation',
   'visibility',
+  'us_aqi',
 ] as const
 export type ExtraHourlyField = (typeof EXTRA_HOURLY_FIELDS)[number]
 
