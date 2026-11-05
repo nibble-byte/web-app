@@ -257,17 +257,17 @@ describe('WeatherCard', () => {
   describe('hourly chart', () => {
     it('is shown when valid hourly points exist for the selected day', () => {
       renderCard(forecast(), hourlyFor('2026-03-10'))
-      expect(screen.getByText('Hourly Temperature')).toBeInTheDocument()
+      expect(screen.getByText('Hourly Weather')).toBeInTheDocument()
     })
 
     it('is hidden when there is no hourly data', () => {
       renderCard(forecast(), noHourly)
-      expect(screen.queryByText('Hourly Temperature')).not.toBeInTheDocument()
+      expect(screen.queryByText('Hourly Weather')).not.toBeInTheDocument()
     })
 
     it('is hidden when hourly data only covers other days', () => {
       renderCard(forecast(), hourlyFor('2026-03-11'))
-      expect(screen.queryByText('Hourly Temperature')).not.toBeInTheDocument()
+      expect(screen.queryByText('Hourly Weather')).not.toBeInTheDocument()
     })
 
     describe('scrolling across days', () => {

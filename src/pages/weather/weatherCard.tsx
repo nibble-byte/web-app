@@ -350,7 +350,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
             {hourlyForSelected.length > 0 && (
                 <Box className={styles.hourlySection}>
                     <Box className={styles.chartHeader}>
-                        <Typography className={styles.chartTitle}>Hourly Temperature</Typography>
+                        <Typography className={styles.chartTitle}>Hourly Weather</Typography>
                         <Button size="small" className={styles.nowButton} onClick={jumpToNow} disabled={!nowPoint} aria-label="Jump to today and now">
                             <span className={styles.nowDot} aria-hidden="true" />
                             Today &amp; Now
