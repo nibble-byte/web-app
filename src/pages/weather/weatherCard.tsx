@@ -28,19 +28,44 @@ interface WeatherCardProps {
 }
 
 const HOUR_WIDTH = 44;
-const TEMP_COLOR = '#187a72';
-const RAIN_COLOR = '#1976d2';
-const PRECIP_COLOR = '#8e44ad';
-const WIND_COLOR = '#ef8a17';
-const AXIS_COLORS = { temp: TEMP_COLOR, rain: RAIN_COLOR, precip: PRECIP_COLOR, wind: WIND_COLOR };
-const MEASURE_FIELDS = { temp: 'temperature', rain: 'rainChance', precip: 'precipitation', wind: 'wind' } as const;
-const AXIS_OPTIONS = [
-    { key: 'temp', label: 'Temperature' },
-    { key: 'rain', label: 'Rain chance' },
-    { key: 'precip', label: 'Precipitation' },
-    { key: 'wind', label: 'Wind speed' },
-] as const;
-type AxisKey = (typeof AXIS_OPTIONS)[number]['key'];
+type MeasureKey =
+    | 'temp' | 'rain' | 'precip' | 'wind'
+    | 'humidity' | 'dewpoint' | 'snow' | 'windDir' | 'gusts' | 'cloud' | 'pressure' | 'radiation' | 'visibility';
+
+type Measure = {
+    key: MeasureKey;
+    field: string;
+    label: string;
+    unit: string;
+    color: string;
+    decimals: number;
+    // Value range of this line's own hidden y scale.
+    domain: [number | string, number | string | ((max: number) => number)];
+    // Converts the API value to the displayed unit.
+    scale?: number;
+    defaultOn?: boolean;
+    width?: number;
+};
+
+const atLeast = (floor: number, step: number) => (max: number) => Math.max(floor, Math.ceil(max / step) * step);
+
+const MEASURES: Measure[] = [
+    { key: 'temp', field: 'temperature', label: 'Temperature', unit: '°F', color: '#187a72', decimals: 1, domain: [0, 120], defaultOn: true, width: 3 },
+    { key: 'rain', field: 'rainChance', label: 'Rain chance', unit: '%', color: '#1976d2', decimals: 0, domain: [0, 100], defaultOn: true },
+    { key: 'precip', field: 'precipitation', label: 'Precipitation', unit: ' in', color: '#8e44ad', decimals: 2, domain: [0, atLeast(0.5, 0.1)], defaultOn: true },
+    { key: 'wind', field: 'wind', label: 'Wind', unit: ' km/h', color: '#ef8a17', decimals: 0, domain: [0, atLeast(20, 10)], defaultOn: true },
+    { key: 'humidity', field: 'relativehumidity_2m', label: 'Humidity', unit: '%', color: '#00acc1', decimals: 0, domain: [0, 100] },
+    { key: 'dewpoint', field: 'dewpoint_2m', label: 'Dew point', unit: '°F', color: '#5c6bc0', decimals: 1, domain: [-20, 120] },
+    { key: 'snow', field: 'snowfall', label: 'Snowfall', unit: ' in', color: '#90a4ae', decimals: 2, domain: [0, atLeast(0.5, 0.1)] },
+    { key: 'windDir', field: 'winddirection_10m', label: 'Wind direction', unit: '°', color: '#c0792b', decimals: 0, domain: [0, 360] },
+    { key: 'gusts', field: 'windgusts_10m', label: 'Wind gusts', unit: ' km/h', color: '#d84315', decimals: 0, domain: [0, atLeast(30, 10)] },
+    { key: 'cloud', field: 'cloudcover', label: 'Cloud cover', unit: '%', color: '#78909c', decimals: 0, domain: [0, 100] },
+    { key: 'pressure', field: 'surface_pressure', label: 'Pressure', unit: ' hPa', color: '#6d4c41', decimals: 0, domain: ['auto', 'auto'] },
+    { key: 'radiation', field: 'shortwave_radiation', label: 'Solar radiation', unit: ' W/m²', color: '#f9a825', decimals: 0, domain: [0, atLeast(100, 100)] },
+    { key: 'visibility', field: 'visibility', label: 'Visibility', unit: ' mi', color: '#43a047', decimals: 1, domain: [0, atLeast(5, 5)], scale: 1 / 1609.344 },
+];
+const MEASURE_BY_KEY = Object.fromEntries(MEASURES.map((measure) => [measure.key, measure])) as Record<MeasureKey, Measure>;
+const DEFAULT_VISIBLE = Object.fromEntries(MEASURES.map((measure) => [measure.key, !!measure.defaultOn])) as Record<MeasureKey, boolean>;
 const CHART_HEIGHT = 260;
 const COMPACT_CHART_HEIGHT = 150;
 // Room for the horizontal scrollbar so the vertical axis never overflows.
@@ -50,10 +75,12 @@ type HourlyPoint = {
     timestamp: string;
     ts: number;
     time: string;
-    temperature: number;
-    precipitation: number | null;
-    rainChance: number | null;
-    wind: number | null;
+    [field: string]: number | string | null | undefined;
+};
+
+const readingOf = (point: HourlyPoint, field: string): number | null => {
+    const value = point[field];
+    return typeof value === 'number' ? value : null;
 };
 
 // Linear interpolation of every measure at `at` (ms); a measure is null when either neighbouring hour has no reading.
@@ -64,30 +91,24 @@ export const interpolateAt = (points: HourlyPoint[], at: number): HourlyPoint | 
     const b = points[after];
     const a = points[Math.max(0, after - (b.ts === at ? 0 : 1))];
     const ratio = b.ts === a.ts ? 0 : (at - a.ts) / (b.ts - a.ts);
-    const blend = (x: number | null, y: number | null) => (x === null || y === null ? null : x + (y - x) * ratio);
-    return {
-        timestamp: '',
-        ts: at,
-        time: moment(at).format('h:mm A'),
-        temperature: blend(a.temperature, b.temperature) as number,
-        precipitation: blend(a.precipitation, b.precipitation),
-        rainChance: blend(a.rainChance, b.rainChance),
-        wind: blend(a.wind, b.wind),
-    };
+    const result: HourlyPoint = { timestamp: '', ts: at, time: moment(at).format('h:mm A') };
+    for (const { field } of MEASURES) {
+        const x = readingOf(a, field);
+        const y = readingOf(b, field);
+        result[field] = x === null || y === null ? null : x + (y - x) * ratio;
+    }
+    return result;
 };
 
 // Horizontal distance (px) within which the hover shows the interpolated "now" values.
 const NOW_HOVER_PX = 10;
 
-const CustomTooltip: React.FC<any> = ({ active, payload, label, nowPoint, hoveringNow: nearNow }) => {
+const CustomTooltip: React.FC<any> = ({ active, payload, label, nowPoint, hoveringNow: nearNow, visible }) => {
     const theme = useTheme();
     if (active && payload && payload.length > 0) {
         const hoveringNow = !!nowPoint && !!nearNow;
         const source: HourlyPoint = hoveringNow ? nowPoint : payload[0].payload;
-        const precipitation = source?.precipitation;
-        const chance = source?.rainChance;
-        const wind = source?.wind;
-        label = hoveringNow ? nowPoint.ts : label;
+        const when = hoveringNow ? nowPoint.ts : label;
         return (
             <Box
                 sx={{
@@ -97,24 +118,17 @@ const CustomTooltip: React.FC<any> = ({ active, payload, label, nowPoint, hoveri
                 }}
             >
                 <Typography variant="caption" sx={{ color: theme.palette.text.primary }}>
-                    {hoveringNow ? `Now: ${moment(label).format('ddd h:mm A')}` : `Time: ${moment(label).format('ddd h:mm A')}`}
+                    {hoveringNow ? `Now: ${moment(when).format('ddd h:mm A')}` : `Time: ${moment(when).format('ddd h:mm A')}`}
                 </Typography>
-                <Typography variant="caption" sx={{ color: TEMP_COLOR, display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600 }}>
-                    <span className={styles.swatch} style={{ background: TEMP_COLOR }} aria-hidden="true" />
-                    {`Temperature: ${typeof source?.temperature === 'number' ? (hoveringNow ? source.temperature.toFixed(1) : source.temperature) : '—'}°F`}
-                </Typography>
-                <Typography variant="caption" sx={{ color: RAIN_COLOR, display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600 }}>
-                    <span className={styles.swatch} style={{ background: RAIN_COLOR }} aria-hidden="true" />
-                    {`Rain chance: ${typeof chance === 'number' ? `${Math.round(chance)}%` : '—'}`}
-                </Typography>
-                <Typography variant="caption" sx={{ color: PRECIP_COLOR, display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600 }}>
-                    <span className={styles.swatch} style={{ background: PRECIP_COLOR }} aria-hidden="true" />
-                    {`Precipitation: ${typeof precipitation === 'number' ? `${precipitation.toFixed(2)} in` : '—'}`}
-                </Typography>
-                <Typography variant="caption" sx={{ color: WIND_COLOR, display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600 }}>
-                    <span className={styles.swatch} style={{ background: WIND_COLOR }} aria-hidden="true" />
-                    {`Wind: ${typeof wind === 'number' ? `${Math.round(wind)} km/h` : '—'}`}
-                </Typography>
+                {MEASURES.filter((measure) => visible[measure.key]).map((measure) => {
+                    const value = readingOf(source, measure.field);
+                    return (
+                        <Typography key={measure.key} variant="caption" sx={{ color: measure.color, display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600 }}>
+                            <span className={styles.swatch} style={{ background: measure.color }} aria-hidden="true" />
+                            {`${measure.label}: ${value === null ? '—' : `${value.toFixed(measure.decimals)}${measure.unit}`}`}
+                        </Typography>
+                    );
+                })}
             </Box>
         );
     }
@@ -174,6 +188,12 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         precipitation: hourlyData.precipitation[index] ?? null,
         rainChance: hourlyData.precipitation_probability[index] ?? null,
         wind: hourlyData.windspeed_10m[index] ?? null,
+        ...Object.fromEntries(
+            MEASURES.filter((measure) => measure.field in (hourlyData.extra ?? {})).map((measure) => {
+                const reading = hourlyData.extra[measure.field as keyof HourlyForecast['extra']][index];
+                return [measure.field, typeof reading === 'number' ? reading * (measure.scale ?? 1) : null];
+            })
+        ),
     }));
     const hourlyForSelected = allHourly.filter((point) => point.timestamp.slice(0, 10) === selectedDate);
     const chartWidth = allHourly.length * HOUR_WIDTH;
@@ -198,23 +218,19 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         setHoverNow(Math.abs(x - nowX) <= NOW_HOVER_PX);
     };
 
-    const [visibleAxes, setVisibleAxes] = useState<Record<AxisKey, boolean>>({ temp: true, rain: true, precip: true, wind: true });
-    const [axisMenuAnchor, setAxisMenuAnchor] = useState<HTMLElement | null>(null);
-    const toggleAxis = (key: AxisKey) => setVisibleAxes((current) => ({ ...current, [key]: !current[key] }));
-    const shown = (element: React.ReactElement) => visibleAxes[element.key as AxisKey];
+    const [visibleLines, setVisibleLines] = useState<Record<MeasureKey, boolean>>(DEFAULT_VISIBLE);
+    const [lineMenuAnchor, setLineMenuAnchor] = useState<HTMLElement | null>(null);
+    const toggleLine = (key: MeasureKey) => setVisibleLines((current) => ({ ...current, [key]: !current[key] }));
+    const shownMeasures = MEASURES.filter((measure) => visibleLines[measure.key]);
 
-    const yAxes = [
-        <YAxis key="temp" yAxisId="temp" domain={[0, 120]} hide />,
-        <YAxis key="rain" yAxisId="rain" domain={[0, 100]} hide />,
-        <YAxis key="precip" yAxisId="precip" domain={[0, (max: number) => Math.max(0.5, Math.ceil(max * 10) / 10)]} hide />,
-        <YAxis key="wind" yAxisId="wind" domain={[0, (max: number) => Math.max(20, Math.ceil(max / 10) * 10)]} hide />,
-    ];
-    const chartLines = () => [
-        <Line key="temp" yAxisId="temp" type="monotone" dataKey="temperature" stroke={TEMP_COLOR} strokeWidth={3} dot={false} activeDot={hoverNow ? false : { r: 5 }} isAnimationActive={false} />,
-        <Line key="rain" yAxisId="rain" type="monotone" dataKey="rainChance" stroke={RAIN_COLOR} strokeWidth={2} dot={false} activeDot={hoverNow ? false : { r: 4 }} isAnimationActive={false} />,
-        <Line key="precip" yAxisId="precip" type="monotone" dataKey="precipitation" stroke={PRECIP_COLOR} strokeWidth={2} dot={false} activeDot={hoverNow ? false : { r: 4 }} isAnimationActive={false} />,
-        <Line key="wind" yAxisId="wind" type="monotone" dataKey="wind" stroke={WIND_COLOR} strokeWidth={2} dot={false} activeDot={hoverNow ? false : { r: 4 }} isAnimationActive={false} />,
-    ];
+    // Each line gets its own hidden y scale so very different units stay readable together.
+    const yAxes = MEASURES.map((measure) => (
+        <YAxis key={measure.key} yAxisId={measure.key} domain={measure.domain as [number, number]} hide />
+    ));
+    const chartLines = () =>
+        shownMeasures.map((measure) => (
+            <Line key={measure.key} yAxisId={measure.key} type="monotone" dataKey={measure.field} stroke={measure.color} strokeWidth={measure.width ?? 2} dot={false} activeDot={hoverNow ? false : { r: measure.width ? 5 : 4 }} isAnimationActive={false} />
+        ));
 
     // Vertical wheel over the hourly chart scrolls it through time: up is forward, down is back.
     // Horizontal wheel/trackpad gestures keep their normal behaviour.
@@ -279,7 +295,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const currentPoint = isTodaySelected
         ? hourlyForSelected.find((point) => moment(point.timestamp).isSame(now, 'hour'))
         : undefined;
-    const headlineTemperature = currentPoint ? currentPoint.temperature : temperature_2m_max;
+    const headlineTemperature = currentPoint ? readingOf(currentPoint, 'temperature') : temperature_2m_max;
 
     return (
         <Box className={`${styles.weatherCard} ${theme.palette.mode === 'dark' ? styles.dark : ''} ${mobile ? styles.mobile : ''}`}>
@@ -339,15 +355,15 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                             <span className={styles.nowDot} aria-hidden="true" />
                             Today &amp; Now
                         </Button>
-                        <Button size="small" className={styles.axesButton} onClick={(event) => setAxisMenuAnchor(event.currentTarget)} aria-haspopup="menu" aria-expanded={!!axisMenuAnchor} aria-label="Choose lines">
+                        <Button size="small" className={styles.axesButton} onClick={(event) => setLineMenuAnchor(event.currentTarget)} aria-haspopup="menu" aria-expanded={!!lineMenuAnchor} aria-label="Choose lines">
                             Lines ▾
                         </Button>
-                        <Menu anchorEl={axisMenuAnchor} open={!!axisMenuAnchor} onClose={() => setAxisMenuAnchor(null)}>
-                            {AXIS_OPTIONS.map((option) => (
-                                <MenuItem key={option.key} dense onClick={() => toggleAxis(option.key)}>
+                        <Menu anchorEl={lineMenuAnchor} open={!!lineMenuAnchor} onClose={() => setLineMenuAnchor(null)}>
+                            {MEASURES.map((measure) => (
+                                <MenuItem key={measure.key} dense onClick={() => toggleLine(measure.key)}>
                                     <FormControlLabel
-                                        control={<Checkbox size="small" sx={{ color: AXIS_COLORS[option.key], '&.Mui-checked': { color: AXIS_COLORS[option.key] } }} checked={visibleAxes[option.key]} tabIndex={-1} disableRipple />}
-                                        label={<><span className={styles.swatch} style={{ background: AXIS_COLORS[option.key] }} aria-hidden="true" />{option.label}</>}
+                                        control={<Checkbox size="small" sx={{ color: measure.color, '&.Mui-checked': { color: measure.color } }} checked={visibleLines[measure.key]} tabIndex={-1} disableRipple />}
+                                        label={<><span className={styles.swatch} style={{ background: measure.color }} aria-hidden="true" />{measure.label}</>}
                                         onClick={(event) => event.preventDefault()}
                                     />
                                 </MenuItem>
@@ -369,18 +385,18 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                                 <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
                                 <XAxis dataKey="ts" type="number" scale="time" domain={[firstTs, lastTs]} ticks={allHourly.filter((_, index) => index % 2 === 0).map((point) => point.ts)} tickFormatter={(value) => moment(value).format('h A')} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
                                 {yAxes}
-                                <Tooltip content={<CustomTooltip nowPoint={nowPoint} hoveringNow={hoverNow} />} cursor={<HoverCursor nowX={hoverNow && nowPoint ? nowX : null} />} />
+                                <Tooltip content={<CustomTooltip nowPoint={nowPoint} hoveringNow={hoverNow} visible={visibleLines} />} cursor={<HoverCursor nowX={hoverNow && nowPoint ? nowX : null} />} />
                                 {allHourly.filter((point) => point.timestamp.slice(11, 13) === '00').map((point) => (
                                     <ReferenceLine yAxisId="temp" key={point.timestamp} x={point.ts} stroke={theme.palette.divider} label={{ value: moment(point.timestamp).format('ddd M/D'), position: 'insideTopLeft', fontSize: 11, fill: theme.palette.text.secondary }} />
                                 ))}
                                 {nowPoint && (
                                     <ReferenceLine yAxisId="temp" x={nowMs} stroke="#d32f2f" strokeWidth={2} strokeDasharray="4 3" label={{ value: 'Now', position: 'insideTopRight', fontSize: 11, fontWeight: 700, fill: '#d32f2f' }} />
                                 )}
-                                {chartLines().filter(shown)}
-                                {nowPoint && AXIS_OPTIONS.filter((option) => visibleAxes[option.key]).map((option) => {
-                                    const value = nowPoint[MEASURE_FIELDS[option.key]];
-                                    return typeof value === 'number' ? (
-                                        <ReferenceDot key={`now-${option.key}`} yAxisId={option.key} x={nowMs} y={value} r={5} fill={AXIS_COLORS[option.key]} stroke="#fff" strokeWidth={2} ifOverflow="visible" />
+                                {chartLines()}
+                                {nowPoint && shownMeasures.map((measure) => {
+                                    const value = readingOf(nowPoint, measure.field);
+                                    return value !== null ? (
+                                        <ReferenceDot key={`now-${measure.key}`} yAxisId={measure.key} x={nowMs} y={value} r={5} fill={measure.color} stroke="#fff" strokeWidth={2} ifOverflow="visible" />
                                     ) : null;
                                 })}
                             </LineChart>

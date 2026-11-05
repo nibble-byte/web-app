@@ -1,7 +1,11 @@
 import { fireEvent, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import WeatherCard, { interpolateAt } from './weatherCard'
-import { DailyForecast, HourlyForecast } from './parseForecast'
+import {
+  DailyForecast,
+  EXTRA_HOURLY_FIELDS,
+  HourlyForecast,
+} from './parseForecast'
 import { renderWithProviders } from '../../test/renderWithProviders'
 
 const forecast = (overrides: Partial<DailyForecast> = {}): DailyForecast => ({
@@ -17,7 +21,13 @@ const forecast = (overrides: Partial<DailyForecast> = {}): DailyForecast => ({
   ...overrides,
 })
 
+const extraFor = (length: number): HourlyForecast['extra'] =>
+  Object.fromEntries(
+    EXTRA_HOURLY_FIELDS.map((field) => [field, Array(length).fill(null)])
+  ) as HourlyForecast['extra']
+
 const noHourly: HourlyForecast = {
+  extra: extraFor(0),
   time: [],
   temperature_2m: [],
   precipitation: [],
@@ -26,6 +36,7 @@ const noHourly: HourlyForecast = {
 }
 
 const hourlyFor = (date: string): HourlyForecast => ({
+  extra: extraFor(3),
   time: ['00', '01', '02'].map((hour) => `${date}T${hour}:00`),
   temperature_2m: [50, 51, 52],
   precipitation: [0, 0.02, null],
@@ -173,6 +184,7 @@ describe('WeatherCard', () => {
         <WeatherCard
           forecastData={forecast()}
           hourlyData={{
+            extra: extraFor(4),
             time: [
               '2026-03-10T23:00',
               '2026-03-11T00:00',
@@ -224,6 +236,18 @@ describe('WeatherCard', () => {
       expect(lineCount()).toBe(4)
     })
 
+    it('offers every other hourly measure, off by default', async () => {
+      const user = userEvent.setup()
+      renderCard(forecast(), hourlyFor('2026-03-10'))
+      await user.click(screen.getByRole('button', { name: 'Choose lines' }))
+      expect(screen.getAllByRole('checkbox')).toHaveLength(13)
+      const humidity = screen.getByRole('checkbox', { name: 'Humidity' })
+      expect(humidity).not.toBeChecked()
+      await user.click(screen.getByRole('menuitem', { name: 'Humidity' }))
+      expect(humidity).toBeChecked()
+      expect(lineCount()).toBe(5)
+    })
+
     it('has no visible y axes', () => {
       renderCard(forecast(), hourlyFor('2026-03-10'))
       expect(document.querySelectorAll('.recharts-yAxis').length).toBe(0)
@@ -248,6 +272,7 @@ describe('WeatherCard', () => {
 
     describe('scrolling across days', () => {
       const twoDays: HourlyForecast = {
+        extra: extraFor(48),
         time: ['2026-03-09', '2026-03-10'].flatMap((date) =>
           Array.from(
             { length: 24 },

@@ -209,9 +209,12 @@
 
 .detailSection {
   margin-bottom: 30px;
+  transform-origin: top center;
+  animation: openDetail 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .calendarSection {
+  animation: openCalendar 360ms ease-out both;
   padding: clamp(16px, 2.4vw, 28px);
   border: 1px solid var(--weather-line);
   border-radius: 10px;
@@ -240,6 +243,23 @@
 .sectionHint {
   color: var(--weather-muted);
   font-size: 0.82rem !important;
+}
+
+@keyframes openDetail {
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes openCalendar {
+  from { opacity: 0; transform: scale(1.02); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detailSection,
+  .calendarSection {
+    animation: none;
+  }
 }
 
 @keyframes reveal {

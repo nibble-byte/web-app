@@ -11,6 +11,24 @@ export interface DailyForecast {
 }
 
 // Parallel arrays holding only valid points, so `time[i]` always matches `temperature_2m[i]`.
+export const EXTRA_HOURLY_FIELDS = [
+  'relativehumidity_2m',
+  'dewpoint_2m',
+  'snowfall',
+  'winddirection_10m',
+  'windgusts_10m',
+  'cloudcover',
+  'surface_pressure',
+  'shortwave_radiation',
+  'visibility',
+] as const
+export type ExtraHourlyField = (typeof EXTRA_HOURLY_FIELDS)[number]
+
+const mapExtra = <T>(read: (field: ExtraHourlyField) => T) =>
+  Object.fromEntries(
+    EXTRA_HOURLY_FIELDS.map((field) => [field, read(field)])
+  ) as Record<ExtraHourlyField, T>
+
 // `precipitation` is in inches and `precipitation_probability` a percentage; both are null when the hour has no reading.
 export interface HourlyForecast {
   time: string[]
@@ -18,6 +36,8 @@ export interface HourlyForecast {
   precipitation: (number | null)[]
   precipitation_probability: (number | null)[]
   windspeed_10m: (number | null)[]
+  // Remaining hourly readings, keyed by their Open-Meteo variable name.
+  extra: Record<ExtraHourlyField, (number | null)[]>
 }
 
 export interface ParsedForecast {
@@ -132,12 +152,14 @@ const parseHourly = (hourly: unknown): HourlyForecast => {
     precipitation: [],
     precipitation_probability: [],
     windspeed_10m: [],
+    extra: mapExtra(() => []),
   }
   if (!isRecord(hourly) || !Array.isArray(hourly.time)) return empty
   const temperatures = columnOf(hourly, 'temperature_2m')
   const precipitation = columnOf(hourly, 'precipitation')
   const probability = columnOf(hourly, 'precipitation_probability')
   const winds = columnOf(hourly, 'windspeed_10m')
+  const extraColumns = mapExtra((field) => columnOf(hourly, field))
 
   const points: {
     time: string
@@ -145,6 +167,7 @@ const parseHourly = (hourly: unknown): HourlyForecast => {
     precipitation: number | null
     probability: number | null
     wind: number | null
+    extra: Record<ExtraHourlyField, number | null>
   }[] = []
   hourly.time.forEach((time, i) => {
     const temperature = finiteOrNull(temperatures[i])
@@ -155,6 +178,7 @@ const parseHourly = (hourly: unknown): HourlyForecast => {
         precipitation: finiteOrNull(precipitation[i]),
         probability: finiteOrNull(probability[i]),
         wind: finiteOrNull(winds[i]),
+        extra: mapExtra((field) => finiteOrNull(extraColumns[field][i])),
       })
     }
   })
@@ -165,6 +189,7 @@ const parseHourly = (hourly: unknown): HourlyForecast => {
     precipitation: sorted.map((point) => point.precipitation),
     precipitation_probability: sorted.map((point) => point.probability),
     windspeed_10m: sorted.map((point) => point.wind),
+    extra: mapExtra((field) => sorted.map((point) => point.extra[field])),
   }
 }
 
@@ -202,6 +227,7 @@ export const mergeForecasts = (
       precipitation: number | null
       probability: number | null
       wind: number | null
+      extra: Record<ExtraHourlyField, number | null>
     }
   >()
   for (const hourly of [additional.hourly, existing.hourly]) {
@@ -211,6 +237,7 @@ export const mergeForecasts = (
         precipitation: hourly.precipitation[i],
         probability: hourly.precipitation_probability[i],
         wind: hourly.windspeed_10m[i],
+        extra: mapExtra((field) => hourly.extra[field][i] ?? null),
       })
     )
   }
@@ -224,6 +251,9 @@ export const mergeForecasts = (
       precipitation: times.map((t) => points.get(t)!.precipitation),
       precipitation_probability: times.map((t) => points.get(t)!.probability),
       windspeed_10m: times.map((t) => points.get(t)!.wind),
+      extra: mapExtra((field) =>
+        times.map((t) => points.get(t)!.extra[field])
+      ),
     },
     omittedRecords: existing.omittedRecords + additional.omittedRecords,
   }

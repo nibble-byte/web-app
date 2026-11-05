@@ -187,6 +187,7 @@ describe('parseForecast', () => {
         precipitation: [],
         precipitation_probability: [],
         windspeed_10m: [],
+        extra: expect.objectContaining({ cloudcover: [], visibility: [] }),
       }
       expect(parseForecast({ daily }).hourly).toEqual(empty)
       expect(parseForecast({ daily, hourly: null }).hourly).toEqual(empty)
@@ -211,6 +212,7 @@ describe('parseForecast', () => {
           precipitation: [0.3, 0.1, 9, 9, null, 7],
           precipitation_probability: [30, 10, 99, 99, 'x', 70],
           windspeed_10m: [8, 5, 99, 99, null, 70],
+          cloudcover: [80, 20, 99, 99, 'x', 70],
         },
       })
       expect(hourly).toEqual({
@@ -219,7 +221,12 @@ describe('parseForecast', () => {
         precipitation: [0.1, 0.3, null],
         precipitation_probability: [10, 30, null],
         windspeed_10m: [5, 8, null],
+        extra: {
+          ...hourly.extra,
+          cloudcover: [20, 80, null],
+        },
       })
+      expect(hourly.extra.visibility).toEqual([null, null, null])
     })
 
     it('does not discard the daily forecast when every hourly point is invalid', () => {
