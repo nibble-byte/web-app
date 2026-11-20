@@ -117,11 +117,21 @@ describe('WeatherCard', () => {
       vi.setSystemTime(new Date(2026, 2, 10, 1, 20))
     })
 
-    it('shows the current hourly reading as the current temperature', () => {
+    it('uses the graph’s interpolated now readings for the summary', () => {
       renderCard(forecast(), hourlyFor('2026-03-10'))
       expect(screen.getByText('NOW')).toBeInTheDocument()
       expect(screen.getByText('51°')).toBeInTheDocument()
+      expect(metric('WIND')).toHaveTextContent('—')
+      expect(metric('RAIN CHANCE')).toHaveTextContent('—')
       expect(screen.getByText(/H 61°/)).toBeInTheDocument()
+    })
+
+    it('interpolates current wind and rain chance instead of showing daily maxima', () => {
+      vi.setSystemTime(new Date(2026, 2, 10, 0, 30))
+      renderCard(forecast(), hourlyFor('2026-03-10'))
+      expect(metric('WIND')).toHaveTextContent('7 km/h')
+      expect(metric('RAIN CHANCE')).toHaveTextContent('18%')
+      expect(metric('SUNRISE')).toHaveTextContent('6:30 AM')
     })
 
     it('falls back to a labelled daily high when no hourly reading covers now', () => {

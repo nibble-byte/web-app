@@ -65,7 +65,6 @@ const MEASURES: Measure[] = [
     { key: 'visibility', field: 'visibility', label: 'Visibility', unit: ' mi', color: '#43a047', decimals: 1, domain: [0, atLeast(5, 5)], scale: 1 / 1609.344 },
     { key: 'aqi', field: 'us_aqi', label: 'Air quality (US AQI)', unit: '', color: '#e91e63', decimals: 0, domain: [0, atLeast(100, 50)] },
 ];
-const MEASURE_BY_KEY = Object.fromEntries(MEASURES.map((measure) => [measure.key, measure])) as Record<MeasureKey, Measure>;
 const DEFAULT_VISIBLE = Object.fromEntries(MEASURES.map((measure) => [measure.key, !!measure.defaultOn])) as Record<MeasureKey, boolean>;
 const CHART_HEIGHT = 260;
 const COMPACT_CHART_HEIGHT = 150;
@@ -213,6 +212,10 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const nowX = xOf(nowMs);
     // True while the pointer is on the "Now" line, so the tooltip shows the interpolated current values.
     const [hoverNow, setHoverNow] = useState(false);
+    const [highlightedTs, setHighlightedTs] = useState<number | null>(null);
+    const [statMenuAnchor, setStatMenuAnchor] = useState<HTMLElement | null>(null);
+    const [visibleStats, setVisibleStats] = useState<MeasureKey[]>(['temp', 'wind', 'rain']);
+
     const handleChartMove = (event: React.MouseEvent<HTMLDivElement>) => {
         const el = event.currentTarget;
         const x = event.clientX - el.getBoundingClientRect().left + el.scrollLeft;
@@ -291,12 +294,12 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         }
     };
 
-    // Current conditions exist only for today and only when an hourly reading covers the current hour.
-    const now = moment();
-    const currentPoint = isTodaySelected
-        ? hourlyForSelected.find((point) => moment(point.timestamp).isSame(now, 'hour'))
-        : undefined;
+    // Match the graph's interpolated Now readings, refreshed every minute.
+    const highlightedPoint = allHourly.find((point) => point.ts === highlightedTs);
+    const currentPoint = hoverNow && nowPoint ? nowPoint : highlightedPoint ?? (isTodaySelected ? nowPoint : null);
     const headlineTemperature = currentPoint ? readingOf(currentPoint, 'temperature') : temperature_2m_max;
+    const headlineWind = currentPoint ? readingOf(currentPoint, 'wind') : windspeed_10m_max;
+    const headlineRainChance = currentPoint ? readingOf(currentPoint, 'rainChance') : precipitation_probability_max;
 
     return (
         <Box className={`${styles.weatherCard} ${theme.palette.mode === 'dark' ? styles.dark : ''} ${mobile ? styles.mobile : ''}`}>
@@ -316,7 +319,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                 </Box>
                 <Box className={styles.temperature}>
                     <Box>
-                        <Typography className={styles.metricLabel}>{currentPoint ? 'NOW' : 'DAILY HIGH'}</Typography>
+                        <Typography className={styles.metricLabel}>{currentPoint ? (highlightedPoint && !hoverNow ? moment(currentPoint.ts).format('ddd h:mm A') : 'NOW') : 'DAILY HIGH'}</Typography>
                         <Typography className={styles.temperatureValue}>
                             {degrees(headlineTemperature)}
                         </Typography>
@@ -326,19 +329,33 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                     </Typography>
                 </Box>
             </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Button size="small" aria-label="Choose summary stats" aria-haspopup="menu" aria-expanded={!!statMenuAnchor}
+                    onClick={(event) => setStatMenuAnchor(event.currentTarget)}>Stats ▾</Button>
+                <Menu anchorEl={statMenuAnchor} open={!!statMenuAnchor} onClose={() => setStatMenuAnchor(null)}>
+                    {MEASURES.map((measure) => (
+                        <MenuItem key={measure.key} onClick={() => setVisibleStats((current) =>
+                            current.includes(measure.key) ? current.filter((key) => key !== measure.key) : [...current, measure.key])}>
+                            <Checkbox checked={visibleStats.includes(measure.key)} tabIndex={-1} disableRipple inputProps={{ 'aria-label': measure.label }} />
+                            {measure.label}
+                        </MenuItem>
+                    ))}
+                </Menu>
+            </Box>
             <Box className={styles.metrics}>
-                <Box className={styles.metric}>
-                    <Typography className={styles.metricLabel}>WIND</Typography>
-                    <Typography className={styles.metricValue}>
-                        {windspeed_10m_max === null ? <Unavailable /> : <>{Math.round(windspeed_10m_max)} <small>km/h</small></>}
-                    </Typography>
-                </Box>
-                <Box className={styles.metric}>
-                    <Typography className={styles.metricLabel}>RAIN CHANCE</Typography>
-                    <Typography className={styles.metricValue}>
-                        {precipitation_probability_max === null ? <Unavailable /> : <>{precipitation_probability_max}<small>%</small></>}
-                    </Typography>
-                </Box>
+                {MEASURES.filter((measure) => visibleStats.includes(measure.key)).map((measure) => {
+                    const value = currentPoint ? readingOf(currentPoint, measure.field)
+                        : measure.key === 'wind' ? headlineWind : measure.key === 'rain' ? headlineRainChance
+                        : measure.key === 'temp' ? headlineTemperature : null;
+                    return (
+                        <Box key={measure.key} className={styles.metric}>
+                            <Typography className={styles.metricLabel}>{measure.label.toUpperCase()}</Typography>
+                            <Typography className={styles.metricValue}>
+                                {value === null ? <Unavailable /> : <>{Number(value.toFixed(measure.decimals))}<small>{measure.unit}</small></>}
+                            </Typography>
+                        </Box>
+                    );
+                })}
                 <Box className={styles.metric}>
                     <Typography className={styles.metricLabel}>SUNRISE</Typography>
                     <Typography className={styles.metricValue}>{clockTime(sunrise)}</Typography>
@@ -382,7 +399,9 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                             onMouseLeave={() => setHoverNow(false)}
                             sx={{ flex: 1, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: chartHeight + SCROLLBAR_ALLOWANCE }}
                         >
-                            <LineChart width={chartWidth} height={chartHeight} data={allHourly} margin={{ left: 0, right: 10 }}>
+                            <LineChart onMouseMove={(state) => {
+                                if (state?.activeLabel != null) setHighlightedTs(Number(state.activeLabel));
+                            }} width={chartWidth} height={chartHeight} data={allHourly} margin={{ left: 0, right: 10 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
                                 <XAxis dataKey="ts" type="number" scale="time" domain={[firstTs, lastTs]} ticks={allHourly.filter((_, index) => index % 2 === 0).map((point) => point.ts)} tickFormatter={(value) => moment(value).format('h A')} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
                                 {yAxes}
