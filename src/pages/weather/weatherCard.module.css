@@ -96,10 +96,11 @@
   border-right: 1px solid var(--card-line);
 }
 
-.metric:first-child {
+.metric:nth-child(5n+1) {
   padding-left: 0;
 }
 
+.metric:nth-child(5n),
 .metric:last-child {
   padding-right: 0;
   border-right: 0;
