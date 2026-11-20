@@ -9,7 +9,6 @@ import {
     CartesianGrid,
     XAxis,
     YAxis,
-    Tooltip,
     ReferenceLine,
     ReferenceDot
 } from 'recharts';
@@ -100,49 +99,6 @@ export const interpolateAt = (points: HourlyPoint[], at: number): HourlyPoint | 
     return result;
 };
 
-// Horizontal distance (px) within which the hover shows the interpolated "now" values.
-const NOW_HOVER_PX = 10;
-
-const CustomTooltip: React.FC<any> = ({ active, payload, label, nowPoint, hoveringNow: nearNow, visible }) => {
-    const theme = useTheme();
-    if (active && payload && payload.length > 0) {
-        const hoveringNow = !!nowPoint && !!nearNow;
-        const source: HourlyPoint = hoveringNow ? nowPoint : payload[0].payload;
-        const when = hoveringNow ? nowPoint.ts : label;
-        return (
-            <Box
-                sx={{
-                    backgroundColor: theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
-                    padding: theme.spacing(1),
-                }}
-            >
-                <Typography variant="caption" sx={{ color: theme.palette.text.primary }}>
-                    {hoveringNow ? `Now: ${moment(when).format('ddd h:mm A')}` : `Time: ${moment(when).format('ddd h:mm A')}`}
-                </Typography>
-                {MEASURES.filter((measure) => visible[measure.key]).map((measure) => {
-                    const value = readingOf(source, measure.field);
-                    return (
-                        <Typography key={measure.key} variant="caption" sx={{ color: measure.color, display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600 }}>
-                            <span className={styles.swatch} style={{ background: measure.color }} aria-hidden="true" />
-                            {`${measure.label}: ${value === null ? '—' : `${value.toFixed(measure.decimals)}${measure.unit}`}`}
-                        </Typography>
-                    );
-                })}
-            </Box>
-        );
-    }
-    return null;
-};
-
-// Vertical hover guide: follows the hourly point, but snaps to the "Now" line while it is being hovered.
-const HoverCursor: React.FC<any> = ({ points, nowX }) => {
-    const theme = useTheme();
-    if (!points || points.length < 2) return null;
-    const x = nowX ?? points[0].x;
-    return <line x1={x} x2={x} y1={points[0].y} y2={points[1].y} stroke={nowX === null ? theme.palette.text.disabled : '#d32f2f'} strokeWidth={nowX === null ? 1 : 2} pointerEvents="none" />;
-};
-
 const Unavailable: React.FC = () => <span role="img" aria-label="Unavailable">—</span>;
 
 const degrees = (value: number | null) =>
@@ -196,7 +152,11 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         ),
     }));
     const hourlyForSelected = allHourly.filter((point) => point.timestamp.slice(0, 10) === selectedDate);
-    const chartWidth = allHourly.length * HOUR_WIDTH;
+    // Add extra width so you can scroll until the last data point reaches the center
+    // The extra space equals roughly half the typical viewport width for the chart
+    const baseChartWidth = allHourly.length * HOUR_WIDTH;
+    const extraScrollSpace = 400; // Approximate half-width for centering the last point
+    const chartWidth = baseChartWidth + extraScrollSpace;
     const chartHeight = mobile ? COMPACT_CHART_HEIGHT : CHART_HEIGHT;
     // The current moment, refreshed every minute, drawn at its exact position between hours.
     const [nowMs, setNowMs] = useState(() => Date.now());
@@ -210,17 +170,12 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     const xOf = (ts: number) => (ts - firstTs) * pxPerMs;
     const nowPoint = interpolateAt(allHourly, nowMs);
     const nowX = xOf(nowMs);
-    // True while the pointer is on the "Now" line, so the tooltip shows the interpolated current values.
-    const [hoverNow, setHoverNow] = useState(false);
     const [highlightedTs, setHighlightedTs] = useState<number | null>(null);
+    const [centerTs, setCenterTs] = useState<number | null>(null);
+    const [visibleFirstTs, setVisibleFirstTs] = useState<number>(firstTs);
+    const [visibleLastTs, setVisibleLastTs] = useState<number>(lastTs);
     const [statMenuAnchor, setStatMenuAnchor] = useState<HTMLElement | null>(null);
     const [visibleStats, setVisibleStats] = useState<MeasureKey[]>(['temp', 'wind', 'rain']);
-
-    const handleChartMove = (event: React.MouseEvent<HTMLDivElement>) => {
-        const el = event.currentTarget;
-        const x = event.clientX - el.getBoundingClientRect().left + el.scrollLeft;
-        setHoverNow(Math.abs(x - nowX) <= NOW_HOVER_PX);
-    };
 
     const [visibleLines, setVisibleLines] = useState<Record<MeasureKey, boolean>>(DEFAULT_VISIBLE);
     const [lineMenuAnchor, setLineMenuAnchor] = useState<HTMLElement | null>(null);
@@ -233,7 +188,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
     ));
     const chartLines = () =>
         shownMeasures.map((measure) => (
-            <Line key={measure.key} yAxisId={measure.key} type="monotone" dataKey={measure.field} stroke={measure.color} strokeWidth={measure.width ?? 2} dot={false} activeDot={hoverNow ? false : { r: measure.width ? 5 : 4 }} isAnimationActive={false} />
+            <Line key={measure.key} yAxisId={measure.key} type="monotone" dataKey={measure.field} stroke={measure.color} strokeWidth={measure.width ?? 2} dot={false} isAnimationActive={false} />
         ));
 
     // Vertical wheel over the hourly chart scrolls it through time: up is forward, down is back.
@@ -250,6 +205,20 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         el.addEventListener('wheel', onWheel, { passive: false });
         return () => el.removeEventListener('wheel', onWheel);
     }, [hasHourly]);
+
+    // Update visible range for clamping now indicator
+    useLayoutEffect(() => {
+        const el = scrollRef.current;
+        if (!el || pxPerMs === 0) {
+            setVisibleFirstTs(firstTs);
+            setVisibleLastTs(lastTs);
+            return;
+        }
+        const vFirstTs = firstTs + (el.scrollLeft / pxPerMs);
+        const vLastTs = vFirstTs + (el.clientWidth / pxPerMs);
+        setVisibleFirstTs(vFirstTs);
+        setVisibleLastTs(vLastTs);
+    });
 
     // Date of the hourly point in the middle of the visible chart area.
     const dateAtCenter = (el: HTMLDivElement) => {
@@ -273,7 +242,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedDate, firstHour, hourlyForSelected.length > 0]);
 
-    // Selects today and centers the chart on the current hour.
+    // Selects today and positions the chart so the current hour is in the center.
     const jumpToNow = () => {
         const el = scrollRef.current;
         if (!nowPoint) return;
@@ -285,21 +254,37 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
         if (el) el.scrollLeft = nowX - el.clientWidth / 2;
     };
 
+    // Timestamp of the hourly point in the middle of the visible chart area.
+    const tsAtCenter = (el: HTMLDivElement) => {
+        const x = el.scrollLeft + el.clientWidth / 2;
+        if (allHourly.length === 0) return undefined;
+        const ts = pxPerMs > 0 ? firstTs + x / pxPerMs : firstTs;
+        return Math.min(lastTs, Math.max(firstTs, ts));
+    };
+
     // Selects the day under the center of the chart as the user scrolls.
     const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
-        const date = dateAtCenter(event.currentTarget);
+        const el = event.currentTarget;
+        const ts = tsAtCenter(el);
+        if (ts !== undefined) {
+            setCenterTs(ts);
+        }
+        const date = dateAtCenter(el);
         if (date && date !== selectedDate) {
             scrollSelectedDate.current = date;
             onSelectDate?.(date);
         }
     };
 
-    // Match the graph's interpolated Now readings, refreshed every minute.
-    const highlightedPoint = allHourly.find((point) => point.ts === highlightedTs);
-    const currentPoint = hoverNow && nowPoint ? nowPoint : highlightedPoint ?? (isTodaySelected ? nowPoint : null);
+    // Get the point at the center of the visible chart, or use the current point if not scrolling
+    const centerPoint = centerTs !== null ? interpolateAt(allHourly, centerTs) : null;
+    const currentPoint = centerPoint ?? (isTodaySelected ? nowPoint : null);
     const headlineTemperature = currentPoint ? readingOf(currentPoint, 'temperature') : temperature_2m_max;
     const headlineWind = currentPoint ? readingOf(currentPoint, 'wind') : windspeed_10m_max;
     const headlineRainChance = currentPoint ? readingOf(currentPoint, 'rainChance') : precipitation_probability_max;
+
+    // Clamp nowMs to visible range for edge display when now is off-screen
+    const nowTsClamped = Math.max(visibleFirstTs, Math.min(visibleLastTs, nowMs));
 
     return (
         <Box className={`${styles.weatherCard} ${theme.palette.mode === 'dark' ? styles.dark : ''} ${mobile ? styles.mobile : ''}`}>
@@ -319,7 +304,7 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                 </Box>
                 <Box className={styles.temperature}>
                     <Box>
-                        <Typography className={styles.metricLabel}>{currentPoint ? (highlightedPoint && !hoverNow ? moment(currentPoint.ts).format('ddd h:mm A') : 'NOW') : 'DAILY HIGH'}</Typography>
+                        <Typography className={styles.metricLabel}>{currentPoint ? (centerPoint ? moment(currentPoint.ts).format('ddd h:mm A') : 'NOW') : 'DAILY HIGH'}</Typography>
                         <Typography className={styles.temperatureValue}>
                             {degrees(headlineTemperature)}
                         </Typography>
@@ -395,8 +380,6 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                             aria-label="Hourly temperature, scroll to change day"
                             tabIndex={0}
                             onScroll={handleScroll}
-                            onMouseMove={handleChartMove}
-                            onMouseLeave={() => setHoverNow(false)}
                             sx={{ flex: 1, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: chartHeight + SCROLLBAR_ALLOWANCE }}
                         >
                             <LineChart onMouseMove={(state) => {
@@ -405,18 +388,26 @@ const WeatherCard: React.FC<WeatherCardProps> = ({
                                 <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
                                 <XAxis dataKey="ts" type="number" scale="time" domain={[firstTs, lastTs]} ticks={allHourly.filter((_, index) => index % 2 === 0).map((point) => point.ts)} tickFormatter={(value) => moment(value).format('h A')} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
                                 {yAxes}
-                                <Tooltip content={<CustomTooltip nowPoint={nowPoint} hoveringNow={hoverNow} visible={visibleLines} />} cursor={<HoverCursor nowX={hoverNow && nowPoint ? nowX : null} />} />
                                 {allHourly.filter((point) => point.timestamp.slice(11, 13) === '00').map((point) => (
                                     <ReferenceLine yAxisId="temp" key={point.timestamp} x={point.ts} stroke={theme.palette.divider} label={{ value: moment(point.timestamp).format('ddd M/D'), position: 'insideTopLeft', fontSize: 11, fill: theme.palette.text.secondary }} />
                                 ))}
                                 {nowPoint && (
-                                    <ReferenceLine yAxisId="temp" x={nowMs} stroke="#d32f2f" strokeWidth={2} strokeDasharray="4 3" label={{ value: 'Now', position: 'insideTopRight', fontSize: 11, fontWeight: 700, fill: '#d32f2f' }} />
+                                    <ReferenceLine yAxisId="temp" x={nowTsClamped} stroke="#d32f2f" strokeWidth={2} strokeDasharray="4 3" label={{ value: 'Now', position: 'insideTopRight', fontSize: 11, fontWeight: 700, fill: '#d32f2f' }} />
+                                )}
+                                {centerTs !== null && (
+                                    <ReferenceLine yAxisId="temp" x={centerTs} stroke={theme.palette.primary.main} strokeWidth={2} />
                                 )}
                                 {chartLines()}
                                 {nowPoint && shownMeasures.map((measure) => {
                                     const value = readingOf(nowPoint, measure.field);
                                     return value !== null ? (
-                                        <ReferenceDot key={`now-${measure.key}`} yAxisId={measure.key} x={nowMs} y={value} r={5} fill={measure.color} stroke="#fff" strokeWidth={2} ifOverflow="visible" />
+                                        <ReferenceDot key={`now-${measure.key}`} yAxisId={measure.key} x={nowTsClamped} y={value} r={5} fill={measure.color} stroke="#fff" strokeWidth={2} />
+                                    ) : null;
+                                })}
+                                {centerPoint && shownMeasures.map((measure) => {
+                                    const value = readingOf(centerPoint, measure.field);
+                                    return value !== null ? (
+                                        <ReferenceDot key={`center-${measure.key}`} yAxisId={measure.key} x={centerTs!} y={value} r={5} fill={measure.color} stroke="#fff" strokeWidth={2} ifOverflow="visible" />
                                     ) : null;
                                 })}
                             </LineChart>
